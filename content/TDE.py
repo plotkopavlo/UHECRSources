@@ -66,7 +66,7 @@ box_layout = Layout(display='flex',
                     flex_flow='column', 
                     align_items='stretch', 
                     border='solid',
-                    width='100%')
+                    width='70%')
 
 words = ['correct', 'horse', 'battery', 'staple']
 items_dsg = [widgets.Checkbox( value=False, description='dsg',disabled=False), grid_param_dsg, grid_comp_dsg]
