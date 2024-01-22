@@ -61,6 +61,93 @@ grid_comp_aalc[1,3] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=
 grid_comp_aalc[2,3] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_aalc[3,3] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
 
+
+grid_param_cr_data = GridspecLayout(3, 1)
+grid_param_cr_data[0,0] = widgets.HTML(value="UHECR data")
+grid_param_cr_data[1,0] = widgets.Checkbox(
+                        value=True,
+                        description='Auger 2019',
+                        disabled=False,
+                        indent=False
+                    )
+
+grid_param_cr_data[2,0] = widgets.Checkbox(
+                        value=True,
+                        description='TA 2019',
+                        disabled=False,
+                        indent=False
+                    )
+
+grid_param_nu_sens = GridspecLayout(4, 1)
+
+grid_param_nu_sens[0,0] = widgets.HTML(value="Neutrino sensetivity")
+grid_param_nu_sens[1,0] = widgets.Checkbox(
+                        value=True,
+                        description='IceCube-Gen2',
+                        disabled=False,
+                        indent=False
+                    )
+
+grid_param_nu_sens[2,0] = widgets.Checkbox(
+                        value=True,
+                        description='RNO-G',
+                        disabled=False,
+                        indent=False
+                    )
+
+grid_param_nu_sens[3,0] = widgets.Checkbox(
+                        value=True,
+                        description='GRAND',
+                        disabled=False,
+                        indent=False
+                    )
+
+grid_param_plot = GridspecLayout(2, 3)
+
+
+
+grid_param_plot[0,0] = widgets.HTML(value="<h2>Plot Settings  </h2>",)
+grid_param_plot[1,0] = grid_param_cr_data
+grid_param_plot[1,1] = widgets.RadioButtons(options=['EPOS-LHC', 'SIBYLL2.3d', 'SIBYLL2.3c', 'QGSJET-II04'], description='Air Shower model:', disabled=False)
+grid_param_plot[1,2] = grid_param_nu_sens
+
+
+grid_param_buttons = GridspecLayout(1, 4)
+
+
+
+grid_param_buttons[0,0] = widgets.Button(
+                        description='Create Plot',
+                        disabled=False,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Click me',
+                        icon='check' # (FontAwesome names without the `fa-` prefix)
+                    )
+grid_param_buttons[0,1] = widgets.Button(
+                        description='Fit Data',
+                        disabled=False,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Click me',
+                        icon='check' # (FontAwesome names without the `fa-` prefix)
+                    )
+grid_param_buttons[0,2] = widgets.Button(
+                        description='Save Plot',
+                        disabled=False,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Click me',
+                        icon='check' # (FontAwesome names without the `fa-` prefix)
+                    )
+grid_param_buttons[0,3] = widgets.Button(
+                        description='Save Data',
+                        disabled=False,
+                        button_style='', # 'success', 'info', 'warning', 'danger' or ''
+                        tooltip='Click me',
+                        icon='check' # (FontAwesome names without the `fa-` prefix)
+                    )
+
+
+
+
 box_layout = Layout(display='flex',
                     flex_flow='column', 
                     align_items='stretch', 
@@ -78,5 +165,4 @@ box_fdr = Box(children=items_fdr, layout=box_layout)
 items_aalc = [widgets.HTML(value="<h1>aalc </h1>"), widgets.Checkbox( value=False, description='inculde to the plo',disabled=False), grid_param_aalc, grid_comp_aalc]
 box_aalc = Box(children=items_aalc, layout=box_layout)
 
-box_TDEs = Box(children=[box_dsg, box_fdr, box_aalc], layout=box_layout)
-box_TDEs
+box_TDEs = Box(children=[box_dsg, box_fdr, box_aalc, grid_param_plot,grid_param_buttons], layout=box_layout)
