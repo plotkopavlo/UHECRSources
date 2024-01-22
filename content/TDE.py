@@ -12,8 +12,8 @@ grid_param_dsg[2,0] = widgets.BoundedFloatText(value=7.5, min=0, max=1e6, step=0
 grid_param_dsg[2,1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'} )
 grid_comp_dsg = GridspecLayout(4, 4)
 grid_comp_dsg[0,0] = widgets.HTML(value="<h2> Composition  </h2>",)
-grid_comp_dsg[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], description='Composition:', disabled=False)
-grid_comp_dsg[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=1,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
+grid_comp_dsg[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
+grid_comp_dsg[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=100,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_dsg[2,1] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='He %:',disabled=False, layout={'width': 'max-content'})
 grid_comp_dsg[1,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_dsg[2,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
@@ -31,8 +31,8 @@ grid_param_fdr[2,0] = widgets.BoundedFloatText(value=7.5, min=0, max=1e6, step=0
 grid_param_fdr[2,1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'} )
 grid_comp_fdr = GridspecLayout(4, 4)
 grid_comp_fdr[0,0] = widgets.HTML(value="<h2> Composition  </h2>",)
-grid_comp_fdr[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], description='Composition:', disabled=False)
-grid_comp_fdr[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=1,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
+grid_comp_fdr[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
+grid_comp_fdr[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=100,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_fdr[2,1] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='He %:',disabled=False, layout={'width': 'max-content'})
 grid_comp_fdr[1,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_fdr[2,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
@@ -51,8 +51,8 @@ grid_param_aalc[2,0] = widgets.BoundedFloatText(value=7.5, min=0, max=1e6, step=
 grid_param_aalc[2,1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'} )
 grid_comp_aalc = GridspecLayout(4, 4)
 grid_comp_aalc[0,0] = widgets.HTML(value="<h2> Composition  </h2>",)
-grid_comp_aalc[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], description='Composition:', disabled=False)
-grid_comp_aalc[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=1,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
+grid_comp_aalc[1:3,0] =widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
+grid_comp_aalc[1,1] = widgets.BoundedFloatText(value=12.5,  min=0, max=100,   step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_aalc[2,1] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='He %:',disabled=False, layout={'width': 'max-content'})
 grid_comp_aalc[1,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
 grid_comp_aalc[2,2] = widgets.BoundedFloatText(value=12.5, min=0, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
@@ -159,10 +159,129 @@ widgets.HTML(value="<h1>DSG </h1>")
 items_dsg = [widgets.HTML(value="<h1>dsg </h1>"), widgets.Checkbox( value=False, description='inculde to the plot',disabled=False), grid_param_dsg, grid_comp_dsg]
 box_dsg = Box(children=items_dsg, layout=box_layout)
 
-items_fdr = [widgets.HTML(value="<h1>fdr </h1>"), widgets.Checkbox( value=False, description='inculde to the plo',disabled=False), grid_param_fdr, grid_comp_fdr]
+items_fdr = [widgets.HTML(value="<h1>fdr </h1>"), widgets.Checkbox( value=False, description='inculde to the plot',disabled=False), grid_param_fdr, grid_comp_fdr]
 box_fdr = Box(children=items_fdr, layout=box_layout)
 
-items_aalc = [widgets.HTML(value="<h1>aalc </h1>"), widgets.Checkbox( value=False, description='inculde to the plo',disabled=False), grid_param_aalc, grid_comp_aalc]
+items_aalc = [widgets.HTML(value="<h1>aalc </h1>"), widgets.Checkbox( value=False, description='inculde to the plot',disabled=False), grid_param_aalc, grid_comp_aalc]
 box_aalc = Box(children=items_aalc, layout=box_layout)
 
 box_TDEs = Box(children=[box_dsg, box_fdr, box_aalc, grid_param_plot,grid_param_buttons], layout=box_layout)
+
+
+
+
+# handle composition:
+
+
+def handle_type_comp_aalc_change(change):
+    print(change['new'])
+    if change['new'] =='Free':
+        disible_value = False
+    else:
+        disible_value = True
+        
+    grid_comp_aalc[1,1].disabled = disible_value 
+    grid_comp_aalc[2,1].disabled = disible_value 
+    grid_comp_aalc[1,2].disabled = disible_value 
+    grid_comp_aalc[2,2].disabled = disible_value 
+    grid_comp_aalc[3,2].disabled = disible_value 
+    grid_comp_aalc[1,3].disabled = disible_value 
+    grid_comp_aalc[2,3].disabled = disible_value 
+
+grid_comp_aalc[1:3,0].observe(handle_type_comp_aalc_change, names='value')
+
+
+
+def handle_comp_aalc_change(change):
+    # asdasdasda
+    total_comp = grid_comp_aalc[1,1].value + grid_comp_aalc[2,1].value  + grid_comp_aalc[1,2].value + grid_comp_aalc[2,2].value + grid_comp_aalc[3,2].value + grid_comp_aalc[1,3].value + grid_comp_aalc[2,3].value
+    if total_comp > 100:
+        raise("Error; total composition >100")
+    else:
+        grid_comp_aalc[3,3].value = 100 - total_comp
+        
+
+grid_comp_aalc[1,1].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[2,1].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[1,2].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[2,2].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[3,2].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[1,3].observe(handle_comp_aalc_change, names='value')
+grid_comp_aalc[2,3].observe(handle_comp_aalc_change, names='value')
+
+
+def handle_type_comp_dsg_change(change):
+    print(change['new'])
+    if change['new'] =='Free':
+        disible_value = False
+    else:
+        disible_value = True
+        
+    grid_comp_dsg[1,1].disabled = disible_value 
+    grid_comp_dsg[2,1].disabled = disible_value 
+    grid_comp_dsg[1,2].disabled = disible_value 
+    grid_comp_dsg[2,2].disabled = disible_value 
+    grid_comp_dsg[3,2].disabled = disible_value 
+    grid_comp_dsg[1,3].disabled = disible_value 
+    grid_comp_dsg[2,3].disabled = disible_value 
+
+grid_comp_dsg[1:3,0].observe(handle_type_comp_dsg_change, names='value')
+
+
+def handle_comp_dsg_change(change):
+    # asdasdasda
+    total_comp = grid_comp_dsg[1,1].value + grid_comp_dsg[2,1].value  + grid_comp_dsg[1,2].value + grid_comp_dsg[2,2].value + grid_comp_dsg[3,2].value + grid_comp_dsg[1,3].value + grid_comp_dsg[2,3].value
+    if total_comp > 100:
+        raise("Error; total composition >100")
+    else:
+        grid_comp_dsg[3,3].value = 100 - total_comp
+        
+
+grid_comp_dsg[1,1].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[2,1].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[1,2].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[2,2].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[3,2].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[1,3].observe(handle_comp_dsg_change, names='value')
+grid_comp_dsg[2,3].observe(handle_comp_dsg_change, names='value')
+
+
+
+def handle_type_comp_fdr_change(change):
+    print(change['new'])
+    if change['new'] =='Free':
+        disible_value = False
+    else:
+        disible_value = True
+        
+    grid_comp_fdr[1,1].disabled = disible_value 
+    grid_comp_fdr[2,1].disabled = disible_value 
+    grid_comp_fdr[1,2].disabled = disible_value 
+    grid_comp_fdr[2,2].disabled = disible_value 
+    grid_comp_fdr[3,2].disabled = disible_value 
+    grid_comp_fdr[1,3].disabled = disible_value 
+    grid_comp_fdr[2,3].disabled = disible_value 
+
+grid_comp_dsg[1:3,0].observe(handle_type_comp_fdr_change, names='value')
+
+
+
+
+def handle_comp_fdr_change(change):
+    # asdasdasda
+    total_comp = grid_comp_fdr[1,1].value + grid_comp_fdr[2,1].value  + grid_comp_fdr[1,2].value + grid_comp_fdr[2,2].value + grid_comp_fdr[3,2].value + grid_comp_fdr[1,3].value + grid_comp_fdr[2,3].value
+    if total_comp > 100:
+        raise("Error; total composition >100")
+    else:
+        grid_comp_fdr[3,3].value = 100 - total_comp
+        
+
+grid_comp_fdr[1,1].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[2,1].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[1,2].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[2,2].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[3,2].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[1,3].observe(handle_comp_fdr_change, names='value')
+grid_comp_fdr[2,3].observe(handle_comp_fdr_change, names='value')
+
+display(box_TDEs)
