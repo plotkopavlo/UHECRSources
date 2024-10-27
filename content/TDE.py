@@ -1,8 +1,3 @@
-import micropip
-await micropip.install('ipywidgets')
-await micropip.install('numpy')
-await micropip.install('prince_cr')
-
 from ipywidgets import GridspecLayout, Layout, Box
 import ipywidgets as widgets
 import numpy as np
