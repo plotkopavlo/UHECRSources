@@ -8,8 +8,8 @@ import ipywidgets as widgets
 import numpy as np
 class TDEsUI:
     def __init__(self):
-        with open("spectra_data.pkl", "rb") as file:
-            self.spectra_data = pickle.load(file)
+        # with open("spectra_data.pkl", "rb") as file:
+        #     self.spectra_data = pickle.load(file)
         self.radius = np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
         self.rigidity_max = np.array([1.00e9,  1.39e9,  1.92e9,  2.66e9,  3.68e9,  5.10e9,  7.07e9,  9.80e9,  1.36e10,  1.88e10, 2.61e10, 3.61e10, 5.00e10])/1e9
         self.B_field = np.array([0.1])
