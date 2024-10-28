@@ -1,9 +1,12 @@
-from ipywidgets import GridspecLayout, Layout, Box
-import ipywidgets as widgets
-import numpy as np
-import pickle
-import io
 class TDEsUI:
+    from ipywidgets import GridspecLayout, Layout, Box
+    import ipywidgets as widgets
+    import numpy as np
+    import pickle
+    import io
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from astropy.visualization import quantity_support
     def __init__(self):
         with open("spectra_data.pkl", "rb") as file:
             self.spectra_data = pickle.load(file)
