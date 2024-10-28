@@ -2,14 +2,15 @@ class TDEsUI:
     from ipywidgets import GridspecLayout, Layout, Box
     import ipywidgets as widgets
     import numpy as np
-    import pickle
     import io
     import matplotlib.pyplot as plt
     import seaborn as sns
     from astropy.visualization import quantity_support
     import pickle
+    
     import io
     def __init__(self):
+        import pickle
         with open("spectra_data.pkl", "rb") as file:
             self.spectra_data = pickle.load(file)
         self.radius = np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
