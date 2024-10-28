@@ -10,23 +10,35 @@ class TDEsUI:
     
     import io
     def __init__(self):
-        import pickle
         import numpy as np
+        import pickle
+        import matplotlib.pyplot as plt
+        import ipywidgets as widgets
+        from ipywidgets import GridspecLayout, Layout, Box
+
+        self.GridspecLayout = GridspecLayout
+        self.Layout = Layout
+        self.Box = Box
+        self.np = np
+        
+        self.pickle = pickle
+        self.plt = plt
+        self.widgets = widgets
         with open("spectra_data.pkl", "rb") as file:
-            self.spectra_data = pickle.load(file)
-        self.radius = np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
-        self.rigidity_max = np.array([1.00e9,  1.39e9,  1.92e9,  2.66e9,  3.68e9,  5.10e9,  7.07e9,  9.80e9,  1.36e10,  1.88e10, 2.61e10, 3.61e10, 5.00e10])/1e9
-        self.B_field = np.array([0.1])
+            self.spectra_data = self.pickle.load(file)
+        self.radius = self.np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
+        self.rigidity_max = self.np.array([1.00e9,  1.39e9,  1.92e9,  2.66e9,  3.68e9,  5.10e9,  7.07e9,  9.80e9,  1.36e10,  1.88e10, 2.61e10, 3.61e10, 5.00e10])/1e9
+        self.B_field = self.np.array([0.1])
         self.input_spec = [101, 402, 1206, 1407,1608, 2311, 2814, 5626]
         
         self.error_comp_massage ='<span style="color: red;">Error: Total composition exceeds 100%</span>'
 
         self.composition_values = {
-            'MS': np.array([73.9, 24.7, 0.22, 0.07, 0.63, 0.23, 0.07, 0.12])/100,
-            'RSG': np.array([46.46, 36.74, 0.95 , 0.30, 2.72, 0.99, 0.3, 0.52])/100,
-            'WR': np.array([0.00633, 98.1, 0.0292 , 1.33, 0.0321, 0.2573, 0.0734, 0.136])/100,
-            'CO-WD': np.array([1e-5, 1e-5, 50, 1e-5, 50, 1e-5, 1e-5, 1e-5])/100,
-            'ONeMg-WD': np.array([1e-5, 1e-5, 1e-5, 1e-5, 12, 88, 1e-5, 1e-5])/100
+            'MS': self.np.array([73.9, 24.7, 0.22, 0.07, 0.63, 0.23, 0.07, 0.12])/100,
+            'RSG': self.np.array([46.46, 36.74, 0.95 , 0.30, 2.72, 0.99, 0.3, 0.52])/100,
+            'WR': self.np.array([0.00633, 98.1, 0.0292 , 1.33, 0.0321, 0.2573, 0.0734, 0.136])/100,
+            'CO-WD': self.np.array([1e-5, 1e-5, 50, 1e-5, 50, 1e-5, 1e-5, 1e-5])/100,
+            'ONeMg-WD': self.np.array([1e-5, 1e-5, 1e-5, 1e-5, 12, 88, 1e-5, 1e-5])/100
         }
         self.air_shower_model_names = ['EPOS-LHC', 'SIBYLL2.3d', 'SIBYLL2.3c', 'QGSJET-II04']
         self.air_shower_model = {
@@ -42,7 +54,7 @@ class TDEsUI:
             "radius_index": 0,
             "r_max_index": 0,
             "b_field_index": 0, 
-            "comp": np.zeros(8)+12.5/100,
+            "comp": self.np.zeros(8)+12.5/100,
             "comp_checked": True,
             "include": True,
         }
@@ -53,7 +65,7 @@ class TDEsUI:
             "radius_index": 0,
             "r_max_index": 0,
             "b_field_index": 0, 
-            "comp": np.zeros(8)+12.5/100,
+            "comp": self.np.zeros(8)+12.5/100,
             "comp_checked": True,
             "include": True,
 
@@ -65,7 +77,7 @@ class TDEsUI:
             "radius_index": 0,
             "r_max_index": 0,
             "b_field_index": 0, 
-            "comp": np.zeros(8)+12.5/100,
+            "comp": self.np.zeros(8)+12.5/100,
             "comp_checked": True,
             "include": True,
 
@@ -413,14 +425,14 @@ class TDEsUI:
             }
             
         }
-        plt.rcParams['xtick.major.size'] = 10
-        plt.rcParams['xtick.minor.size'] = 4
-        plt.rcParams['ytick.major.size'] = 10
-        plt.rcParams['ytick.minor.size'] = 4
-        plt.rcParams['xtick.labelsize'] = 18
-        plt.rcParams['ytick.labelsize'] = 18
-        plt.rcParams['axes.labelsize'] = 18
-        plt.rcParams.update({'font.size': 16})
+        self.plt.rcParams['xtick.major.size'] = 10
+        self.plt.rcParams['xtick.minor.size'] = 4
+        self.plt.rcParams['ytick.major.size'] = 10
+        self.plt.rcParams['ytick.minor.size'] = 4
+        self.plt.rcParams['xtick.labelsize'] = 18
+        self.plt.rcParams['ytick.labelsize'] = 18
+        self.plt.rcParams['axes.labelsize'] = 18
+        self.plt.rcParams.update({'font.size': 16})
 
         self.plot_data_sets={
             "cr":{
@@ -456,27 +468,27 @@ class TDEsUI:
         self.filepath ='./collected_results.hdf5'
 
         self.input_spec = [ 101, 402, 1206, 1407, 1608, 2311, 2814, 5626]
-        self.paramlist_fit = (('radius_dsg', np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
+        self.paramlist_fit = (('radius_dsg', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
                                 5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_dsg', np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
+                                5.00e+18])), ('rigidity_dsg', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
                                 7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_dsg', np.array([0.1])), ('radius_fdr', np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
+                                5.00e+10])), ('B_value_dsg', self.np.array([0.1])), ('radius_fdr', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
                                 5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_fdr', np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
+                                5.00e+18])), ('rigidity_fdr', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
                                 7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_fdr', np.array([0.1])), ('radius_aalc', np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
+                                5.00e+10])), ('B_value_fdr', self.np.array([0.1])), ('radius_aalc', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
                                 5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_aalc', np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
+                                5.00e+18])), ('rigidity_aalc', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
                                 7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_aalc', np.array([0.1])))
+                                5.00e+10])), ('B_value_aalc', self.np.array([0.1])))
         self.data_folder = "/afs/ifh.de/user/p/pavlop/homepavlo/TDE/data/TDEData_3TDENR2"
         self.data_set = "3TDENR2"
         self.escape_type = ('direct', 1)
         self.fit = "epos_dif_all_free"
         self.chi2_list = True
 
-        self.A = np.array([1, 4, 12, 14, 16, 23, 28, 56])
-        self.Z = np.array([1, 2,  6,  7,  8, 11, 14, 26])
+        self.A = self.np.array([1, 4, 12, 14, 16, 23, 28, 56])
+        self.Z = self.np.array([1, 2,  6,  7,  8, 11, 14, 26])
         self.E_p_min = 1
 
         self.setup_scan()
@@ -494,7 +506,7 @@ class TDEsUI:
         from prince_analysis_tools.plotter import ScanPlotterTDE
     def create_best_fit(self):
 
-        widget = widgets.ToggleButtons(
+        widget = self.widgets.ToggleButtons(
         options=['I want to play'] + list(self.parameters_best_fit_scenario.keys()),
         description='wchich scanraio you want to plot?:',
         disabled=False,
@@ -505,40 +517,40 @@ class TDEsUI:
         return widget
 
     def create_grid_param(self):
-        grid_param = GridspecLayout(4, 2)
-        grid_param[0, 0:1] = widgets.HTML(value="<h2>Parameters  </h2>")
-        grid_param[1, 0] = widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
-        grid_param[2, 0] = widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
-        grid_param[3, 0] = widgets.Dropdown(options=self.B_field.tolist(), description="B [G]", layout={'width': 'max-content'})
-        grid_param[1, 1] = widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1, description='local rate:', disabled=False, layout={'width': 'max-content'})
-        grid_param[2, 1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'})
+        grid_param = self.widgets(4, 2)
+        grid_param[0, 0:1] = self.widgets.HTML(value="<h2>Parameters  </h2>")
+        grid_param[1, 0] = self.widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
+        grid_param[2, 0] = self.widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
+        grid_param[3, 0] = self.widgets.Dropdown(options=self.B_field.tolist(), description="B [G]", layout={'width': 'max-content'})
+        grid_param[1, 1] = self.widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1, description='local rate:', disabled=False, layout={'width': 'max-content'})
+        grid_param[2, 1] = self.widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'})
         return grid_param
 
     def create_grid_comp(self):
-        grid_comp = GridspecLayout(5, 3)
-        grid_comp[0, 0] = widgets.HTML(value="<h2> Composition  </h2>")
-        grid_comp[0, 1] = widgets.HTML()
-        grid_comp[1:4, 0] = widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
-        grid_comp[1, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='He %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[1, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='O %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Na %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
+        grid_comp = self.GridspecLayout(5, 3)
+        grid_comp[0, 0] = self.widgets.HTML(value="<h2> Composition  </h2>")
+        grid_comp[0, 1] = self.widgets.HTML()
+        grid_comp[1:4, 0] = self.widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
+        grid_comp[1, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[2, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='He %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[3, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[4, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[1, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='O %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[2, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Na %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[3, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[4, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
         return grid_comp
 
     def create_grid_param_cr_data(self):
-        grid_param_cr_data = GridspecLayout(3, 1)
-        grid_param_cr_data[0, 0] = widgets.HTML(value="UHECR data")
+        grid_param_cr_data = self.GridspecLayout(3, 1)
+        grid_param_cr_data[0, 0] = self.widgets.HTML(value="UHECR data")
         
         descriptions = ['Auger 2019', 'TA 2019']
         keys = ['Auger', 'TA']
         initial_values = [True, False]  # Initial values for each checkbox
 
         for i, (desc, key, val) in enumerate(zip(descriptions, keys, initial_values), start=1):
-            checkbox = widgets.Checkbox(value=val, description=desc, disabled=False, indent=False)
+            checkbox = self.widgets.Checkbox(value=val, description=desc, disabled=False, indent=False)
             grid_param_cr_data[i, 0] = checkbox
             # Attach event handler
             checkbox.observe(lambda change, name=key: self.handle_cr_data_change(change, name), names='value')
@@ -546,13 +558,13 @@ class TDEsUI:
         return grid_param_cr_data
 
     def create_grid_param_nu_sets(self):
-        grid_param_nu_sets = GridspecLayout(7, 1)
-        grid_param_nu_sets[0, 0] = widgets.HTML(value="Neutrino")
+        grid_param_nu_sets = self.GridspecLayout(7, 1)
+        grid_param_nu_sets[0, 0] = self.widgets.HTML(value="Neutrino")
         descriptions = ['IceCube HESE', 'IceCube 9 years', 'IceCube-Gen2', 'RNO-G', 'GRAND200k', 'Auger 2019']
         keys = ['HESE', 'IC9yr', 'ICGen2', 'RNO-G', 'GRAND200K', 'Auger2019']
 
         for i, desc in enumerate(descriptions, start=1):
-            checkbox = widgets.Checkbox(value=True, description=desc, disabled=False, indent=False)
+            checkbox = self.widgets.Checkbox(value=True, description=desc, disabled=False, indent=False)
             grid_param_nu_sets[i, 0] = checkbox
             # Attach event handler
             checkbox.observe(lambda change, name=keys[i-1]: self.handle_nu_sens_change(change, name), names='value')
@@ -560,14 +572,14 @@ class TDEsUI:
         return grid_param_nu_sets
 
     def create_grid_param_air_shower_model(self):
-        # grid_param_plot = GridspecLayout(3, 1)
+        # grid_param_plot = self.GridspecLayout(3, 1)
         # grid_param_plot[1, 0] = self.create_grid_param_cr_data()
         # grid_param_plot[3, 0] = self.create_grid_param_nu_sets()
-        return widgets.RadioButtons(options=self.air_shower_model_names, description='Air Shower model:', disabled=False)
+        return self.widgets.RadioButtons(options=self.air_shower_model_names, description='Air Shower model:', disabled=False)
 
     def create_grid_param_syst_cr(self):
-        grid_param_plot = GridspecLayout(4, 2)
-        grid_param_plot[0, 0:2] = widgets.HTML(value="Systematics")  # Adjusted for spanning two columns
+        grid_param_plot = self.GridspecLayout(4, 2)
+        grid_param_plot[0, 0:2] = self.widgets.HTML(value="Systematics")  # Adjusted for spanning two columns
         
         # Define BoundedFloatText widgets and attach handlers
         self.descriptions_syst = [
@@ -577,7 +589,7 @@ class TDEsUI:
         for i, desc in enumerate(self.descriptions_syst):
             row, col = divmod(i, 3)  # Calculate row, column for placement
             # print(row, col)
-            widget = widgets.BoundedFloatText(
+            widget = self.widgets.BoundedFloatText(
                 value=0.0,
                 min=-3*14 if 'E' in desc else -300,
                 max=3*14 if 'E' in desc else 300,
@@ -608,9 +620,9 @@ class TDEsUI:
         # print(f"Updated {name} to {change['new']}")  # Optional: for debugging
 
     def create_grid_param_buttons(self):
-        grid_param_buttons = GridspecLayout(1, 4)
+        grid_param_buttons = self.GridspecLayout(1, 4)
 
-        grid_param_buttons[0, 0] = widgets.Button(
+        grid_param_buttons[0, 0] = self.widgets.Button(
             description='Create Plot',
             disabled=False,
             button_style='',  # 'success', 'info', 'warning', 'danger' or ''
@@ -618,7 +630,7 @@ class TDEsUI:
             icon='chart-line'  # FontAwesome icon names without the `fa-` prefix
         )
 
-        grid_param_buttons[0, 1] = widgets.Button(
+        grid_param_buttons[0, 1] = self.widgets.Button(
             description='Fit Data',
             disabled=False,
             button_style='',
@@ -626,7 +638,7 @@ class TDEsUI:
             icon='chart-bar'
         )
 
-        grid_param_buttons[0, 2] = widgets.Button(
+        grid_param_buttons[0, 2] = self.widgets.Button(
             description='Save Plot',
             disabled=False,
             button_style='',
@@ -634,7 +646,7 @@ class TDEsUI:
             icon='save'
         )
 
-        grid_param_buttons[0, 3] = widgets.Button(
+        grid_param_buttons[0, 3] = self.widgets.Button(
             description='Save Data',
             disabled=False,
             button_style='',
@@ -647,25 +659,25 @@ class TDEsUI:
 
 
     def setup_ui(self):
-        self.box_layout_column = Layout(display='flex',  flex_flow='column', align_items='stretch', border='solid', width='100%')
-        self.box_layout_column_no_borber = Layout(display='flex', flex_flow='column', align_items='stretch', border='none', width='100%')
-        self.box_layout_row = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='solid', width='100%')
-        self.box_layout_row_no_border = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='none', width='100%')
+        self.box_layout_column = self.Layout(display='flex',  flex_flow='column', align_items='stretch', border='solid', width='100%')
+        self.box_layout_column_no_borber = self.Layout(display='flex', flex_flow='column', align_items='stretch', border='none', width='100%')
+        self.box_layout_row = self.Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='solid', width='100%')
+        self.box_layout_row_no_border = self.Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='none', width='100%')
 
         
         self.plotting_scanario = self.create_best_fit()
-        self.plotting_scanario_title = Box(children=[widgets.HTML(value="<h1>Predefined options</h1>"), self.plotting_scanario], layout=self.box_layout_column_no_borber)
+        self.plotting_scanario_title = self.Box(children=[self.widgets.HTML(value="<h1>Predefined options</h1>"), self.plotting_scanario], layout=self.box_layout_column_no_borber)
 
         
-        self.include_dsg = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_dsg = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_dsg = self.create_grid_param()
         self.grid_comp_dsg = self.create_grid_comp()
         
-        self.include_fdr = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_fdr = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_fdr = self.create_grid_param()
         self.grid_comp_fdr = self.create_grid_comp()
 
-        self.include_aalc = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_aalc = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_aalc = self.create_grid_param()
         self.grid_comp_aalc = self.create_grid_comp()
 
@@ -675,29 +687,29 @@ class TDEsUI:
         self.plot_air_shower_model = self.create_grid_param_air_shower_model()
         self.buttons = self.create_grid_param_buttons()
 
-        self.plot_output = widgets.Output()
+        self.plot_output = self.widgets.Output()
 
-        self.box_dsg_title = Box(children=[widgets.HTML(value="<h1>AT2019dsg</h1>"), self.include_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg_parameters = Box(children=[self.grid_param_dsg, self.grid_comp_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg = Box(children=[self.box_dsg_title,self.box_dsg_parameters], layout=self.box_layout_column)
+        self.box_dsg_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019dsg</h1>"), self.include_dsg], layout=self.box_layout_row_no_border)
+        self.box_dsg_parameters = self.Box(children=[self.grid_param_dsg, self.grid_comp_dsg], layout=self.box_layout_row_no_border)
+        self.box_dsg = self.Box(children=[self.box_dsg_title,self.box_dsg_parameters], layout=self.box_layout_column)
 
-        self.box_fdr_title = Box(children=[widgets.HTML(value="<h1>AT2019fdr</h1>"), self.include_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr_parameters = Box(children=[self.grid_param_fdr, self.grid_comp_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr = Box(children=[self.box_fdr_title,self.box_fdr_parameters], layout=self.box_layout_column)
-
-
+        self.box_fdr_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019fdr</h1>"), self.include_fdr], layout=self.box_layout_row_no_border)
+        self.box_fdr_parameters = self.Box(children=[self.grid_param_fdr, self.grid_comp_fdr], layout=self.box_layout_row_no_border)
+        self.box_fdr = self.Box(children=[self.box_fdr_title,self.box_fdr_parameters], layout=self.box_layout_column)
 
 
-        self.box_aalc_title = Box(children=[widgets.HTML(value="<h1>AT2019aalc</h1>"), self.include_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc_parameters = Box(children=[self.grid_param_aalc, self.grid_comp_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc = Box(children=[self.box_aalc_title,self.box_aalc_parameters], layout=self.box_layout_column)
 
 
-        self.box_TDEs = Box(children=[self.box_dsg, self.box_fdr,self.box_aalc], layout=self.box_layout_column)  # Add all boxes here
+        self.box_aalc_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019aalc</h1>"), self.include_aalc], layout=self.box_layout_row_no_border)
+        self.box_aalc_parameters = self.Box(children=[self.grid_param_aalc, self.grid_comp_aalc], layout=self.box_layout_row_no_border)
+        self.box_aalc = self.Box(children=[self.box_aalc_title,self.box_aalc_parameters], layout=self.box_layout_column)
 
-        self.box_plot_param = Box(children=[self.plot_data_cr, self.plot_syst_cr, self.plot_air_shower_model, self.plot_data_nu], layout=self.box_layout_row_no_border)
 
-        self.box_ui= Box(children=[self.plotting_scanario_title,self.box_TDEs, self.box_plot_param, self.buttons, self.plot_output], layout=self.box_layout_column) 
+        self.box_TDEs = self.Box(children=[self.box_dsg, self.box_fdr,self.box_aalc], layout=self.box_layout_column)  # Add all boxes here
+
+        self.box_plot_param = self.Box(children=[self.plot_data_cr, self.plot_syst_cr, self.plot_air_shower_model, self.plot_data_nu], layout=self.box_layout_row_no_border)
+
+        self.box_ui= self.Box(children=[self.plotting_scanario_title,self.box_TDEs, self.box_plot_param, self.buttons, self.plot_output], layout=self.box_layout_column) 
         self.plot_data_simple
         self.attach_event_handlers()
 
@@ -863,7 +875,7 @@ class TDEsUI:
             self.grid_comp_dsg[4, 2].value = 100 - total_comp 
             self.grid_comp_dsg[0, 1].value = ""
             self.dsg_parameters["comp_checked"] = True
-            self.fdr_parameters["comp"] = np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
+            self.fdr_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
 
 
     def handle_comp_fdr_change(self, change):
@@ -876,7 +888,7 @@ class TDEsUI:
             self.grid_comp_fdr[4, 2].value = 100 - total_comp
             self.grid_comp_fdr[0, 1].value = ""
             self.fdr_parameters["comp_checked"] = True
-            self.fdr_parameters["comp"] = np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
+            self.fdr_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
 
     def handle_comp_aalc_change(self, change):
         import numpy as np
@@ -889,7 +901,7 @@ class TDEsUI:
             self.grid_comp_aalc[4, 2].value = 100 - total_comp
             self.grid_comp_aalc[0, 1].value = ""
             self.aalc_parameters["comp_checked"] = True
-            self.aalc_parameters["comp"] = np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
+            self.aalc_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
 
     def handle_include_dsg_change(self, change):
         enable = change['new']
@@ -955,41 +967,41 @@ class TDEsUI:
 
     def handle_radius_dsg_change(self, change):
         import numpy as np
-        self.dsg_parameters["radius_index"] =np.where(change['new'] == self.radius)[0][0]
+        self.dsg_parameters["radius_index"] =self.np.where(change['new'] == self.radius)[0][0]
         # self.radius_dsg_value = self.radius_values[self.dsg_parameters["radius_index"]]
 
     def handle_r_max_dsg_change(self, change):
         import numpy as np
-        self.dsg_parameters["r_max_index"] = np.where(change['new'] == self.rigidity_max)[0][0]
+        self.dsg_parameters["r_max_index"] = self.np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_dsg_change(self, change):
         import numpy as np
-        self.dsg_parameters["b_field_index"] =  np.where(change['new'] == self.B_field)[0][0]
+        self.dsg_parameters["b_field_index"] =  self.np.where(change['new'] == self.B_field)[0][0]
 
 
     def handle_radius_fdr_change(self, change):
         import numpy as np
-        self.fdr_parameters["radius_index"] = np.where(change['new'] == self.radius)[0][0]
+        self.fdr_parameters["radius_index"] = self.np.where(change['new'] == self.radius)[0][0]
         # self.radius_fdr_value = self.radius_values[self.fdr_parameters["radius_index"]]
     
 
     def handle_r_max_fdr_change(self, change):
         import numpy as np
-        self.fdr_parameters["r_max_index"] = np.where(change['new'] == self.rigidity_max)[0][0]
+        self.fdr_parameters["r_max_index"] = self.np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_fdr_change(self, change):
         import numpy as np
-        self.fdr_parameters["b_field_index"] = np.where(change['new'] == self.B_field)[0][0]
+        self.fdr_parameters["b_field_index"] = self.np.where(change['new'] == self.B_field)[0][0]
 
 
     def handle_radius_aalc_change(self, change):
         import numpy as np
-        self.aalc_parameters["radius_index"]= np.where(change['new'] == self.radius)[0][0]
+        self.aalc_parameters["radius_index"]= self.np.where(change['new'] == self.radius)[0][0]
         # self.radius_aalc_value = self.radius_values[self.aalc_parameters["radius_index"]]
 
     def handle_r_max_aalc_change(self, change):
         import numpy as np
-        self.aalc_parameters["r_max_index"] =  np.where(change['new'] == self.rigidity_max)[0][0]
+        self.aalc_parameters["r_max_index"] =  self.np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_aalc_change(self, change):
         self.aalc_parameters["b_field_index"] = change['new']
@@ -1004,7 +1016,7 @@ class TDEsUI:
         import pickle
         # Load the XmaxSimple class from the saved file
         with open(filename, "rb") as file:
-            XmaxSimple = pickle.load(file)
+            XmaxSimple = self.pickle.load(file)
     
         # Set the appropriate XmaxSimple model based on the air_shower_model name
         if self.air_shower_model['name'] == 'EPOS-LHC':
@@ -1025,7 +1037,7 @@ class TDEsUI:
         auger2019 = self.spectra_data['auger2019']
         TA2019 = self.spectra_data['TA2019']
         
-        LabelSpectrum = np.power(10,(np.array([2.75,2.65,2.55,2.45,2.35])-label_offset)) # np.power(10,(np.array([2.95,2.70,2.60,2.45,2.35])))
+        LabelSpectrum = self.np.power(10,(self.np.array([2.75,2.65,2.55,2.45,2.35])-label_offset)) # self.np.power(10,(self.np.array([2.95,2.70,2.60,2.45,2.35])))
         A = lambda x: get_AZN(x)[0]
 
         ax_plots = []
@@ -1038,15 +1050,15 @@ class TDEsUI:
                                         r'$15 \leq \mathrm{A} \leq 28$','$29 \leq \mathrm{A} \leq 56$'],
                                         LabelSpectrum):
                 energy, spectrum = result_comb.get_solution_group(group)
-                l, = plt.loglog(energy, spectrum, c=color, ls=ls, **params)
-                plt.annotate(label, (label_E, loffset),color=color, weight = 'bold', fontsize = 13,alpha=label_alpha,
+                l, = self.plt.loglog(energy, spectrum, c=color, ls=ls, **params)
+                self.plt.annotate(label, (label_E, loffset),color=color, weight = 'bold', fontsize = 13,alpha=label_alpha,
                         horizontalalignment ='right', verticalalignment = 'top')
                 ax_plots.append(l)
 
         if plot_total_flux == True:
 
             energy, spectrum = result_comb.get_solution_group('CR')
-            l, = plt.loglog(energy, spectrum, c='saddlebrown', lw=3, ls=ls, label='Total')
+            l, = self.plt.loglog(energy, spectrum, c='saddlebrown', lw=3, ls=ls, label='Total')
             ax_plots.append(l)
 
         
@@ -1061,38 +1073,38 @@ class TDEsUI:
                                                     [0,0,0]):
                 # print("spectrum", spectrum)
                 energy, spectrum = res_tde.get_solution_group('CR') 
-                l, = plt.loglog(energy, spectrum, c=color, lw = 3., label =label, ls = linestyle)
+                l, = self.plt.loglog(energy, spectrum, c=color, lw = 3., label =label, ls = linestyle)
                 ax_plots.append(l)
 
-                # plt.annotate(label, position, fontsize=13, 
+                # self.plt.annotate(label, position, fontsize=13, 
                 #          color=color,rotation=rotation)
         # deltaE/=100
         # print("deltaE inside", deltaE)
 
         if self.plot_data_sets["cr"]["Auger"]:
             # Plot IceCube-Gen2 data
-            plt.errorbar(auger2019['energy']*(1+self.cr_syst["Auger"]["E"]/100), auger2019['spectrum']*(1+self.cr_syst["Auger"]["E"]/100)**2, # depends on data_poemma
+            self.plt.errorbar(auger2019['energy']*(1+self.cr_syst["Auger"]["E"]/100), auger2019['spectrum']*(1+self.cr_syst["Auger"]["E"]/100)**2, # depends on data_poemma
                         yerr=(auger2019['lower_err']*(1+self.cr_syst["Auger"]["E"]/100)**2, auger2019['upper_err']*(1+self.cr_syst["Auger"]["E"]/100)**2),
                         fmt='o', color='black', label = 'Auger 2019')
             
         if self.plot_data_sets["cr"]["TA"]:
-            plt.errorbar(TA2019['energy']*(1+self.cr_syst["TA"]["E"]/100), TA2019['spectrum']*(1+self.cr_syst["TA"]["E"]/100)**2,
+            self.plt.errorbar(TA2019['energy']*(1+self.cr_syst["TA"]["E"]/100), TA2019['spectrum']*(1+self.cr_syst["TA"]["E"]/100)**2,
                  yerr=(TA2019['lower_err']*(1+self.cr_syst["TA"]["E"]/100)**2, TA2019['upper_err']*(1+self.cr_syst["TA"]["E"]/100)**2),
                  fmt='s', color='tab:brown', label = 'TA 2019', markersize=6, elinewidth=3)
 
-        plt.legend(ncol=3, loc='upper center')
+        self.plt.legend(ncol=3, loc='upper center')
 
-        plt.xlim(1e9,3e11)
-        plt.ylim(3e0,6e2)
+        self.plt.xlim(1e9,3e11)
+        self.plt.ylim(3e0,6e2)
 
-        plt.ylabel('$E^3$ J [GeV$^{2}$ cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
-        plt.xlabel('E [GeV]')
+        self.plt.ylabel('$E^3$ J [GeV$^{2}$ cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
+        self.plt.xlabel('E [GeV]')
         return ax_plots
 
     def make_error_boxes(self, xdata, ydata, xerror, yerror, facecolor='r',
                         edgecolor='None', alpha=0.5):
 
-        ax = plt.gca()
+        ax = self.plt.gca()
         from matplotlib.collections import PatchCollection
         from matplotlib.patches import Rectangle
 
@@ -1115,8 +1127,8 @@ class TDEsUI:
 
     def find_nearest(self, array, value):
         import numpy as np
-        array = np.asarray(array)
-        idx = (np.abs(array - value)).argmin()
+        array = self.np.asarray(array)
+        idx = (self.np.abs(array - value)).argmin()
         return idx
 
     def plot_xmax_mean(self, result, model, ls = "solid", lw=2, label=None, auger_label=True):
@@ -1131,18 +1143,18 @@ class TDEsUI:
         XmaxTA2018 = self.spectra_data['XmaxTA2018']
         # plot the reference models
         for A, c, name in zip([1,4,14,56], ['red','gray','green','blue'],['H','He','N','Fe']):
-            Xmax = model.get_mean_Xmax(np.log(A), energy)
-            plt.semilogx(energy,Xmax, color = c)
+            Xmax = model.get_mean_Xmax(self.np.log(A), energy)
+            self.plt.semilogx(energy,Xmax, color = c)
             idx = self.find_nearest(energy,1e11)
-            plt.annotate(name,(energy[idx+1],Xmax[idx]),color = c,annotation_clip=False)
+            self.plt.annotate(name,(energy[idx+1],Xmax[idx]),color = c,annotation_clip=False)
 
         Xmax = model.get_mean_Xmax(mean_lnA, energy)
-        l, = plt.semilogx(energy, Xmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
+        l, = self.plt.semilogx(energy, Xmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
         ax_plots.append(l)
 
         if self.plot_data_sets["cr"]["Auger"]:
-            xerr = np.array((Xmax2019['energy_Low'], Xmax2019['energy_Up']))
-            yerr = np.array((Xmax2019['sys_Low'], Xmax2019['sys_Up']))
+            xerr = self.np.array((Xmax2019['energy_Low'], Xmax2019['energy_Up']))
+            yerr = self.np.array((Xmax2019['sys_Low'], Xmax2019['sys_Up']))
             self.make_error_boxes(Xmax2019['energy'], Xmax2019['val'], xerr, yerr, facecolor='gray')
             
             if self.cr_syst["Auger"]["Xmean"] > 0:
@@ -1150,15 +1162,15 @@ class TDEsUI:
             else:
                 xcorr = self.cr_syst["Auger"]["Xmean"] * Xmax2019['sys_Low']/100
 
-            plt.errorbar(Xmax2019['energy'], Xmax2019['val'] + xcorr,
+            self.plt.errorbar(Xmax2019['energy'], Xmax2019['val'] + xcorr,
                         xerr=(Xmax2019['energy_Low'], Xmax2019['energy_Up']),
                         yerr=(Xmax2019['stat'], Xmax2019['stat']),
                         fmt='o',markersize=6, label='Auger 2019' * auger_label, c='black')
 
         if self.plot_data_sets["cr"]["TA"]:
 
-            xerrTA = np.array((XmaxTA2018['energy_Low'], XmaxTA2018['energy_Up']))
-            yerrTA = np.array((XmaxTA2018['sys_Low'], XmaxTA2018['sys_Up']))
+            xerrTA = self.np.array((XmaxTA2018['energy_Low'], XmaxTA2018['energy_Up']))
+            yerrTA = self.np.array((XmaxTA2018['sys_Low'], XmaxTA2018['sys_Up']))
             self.make_error_boxes(XmaxTA2018['energy'], XmaxTA2018['val'], xerrTA, yerrTA, facecolor='tab:brown',alpha=0.15)
             
             
@@ -1167,16 +1179,16 @@ class TDEsUI:
             else:
                 xcorrTA = self.cr_syst["TA"]["Xmean"] * XmaxTA2018['sys_Low']/100
 
-            plt.errorbar(XmaxTA2018['energy'], XmaxTA2018['val'] + xcorrTA,
+            self.plt.errorbar(XmaxTA2018['energy'], XmaxTA2018['val'] + xcorrTA,
                         xerr=(XmaxTA2018['energy_Low'], XmaxTA2018['energy_Up']),
                         yerr=(XmaxTA2018['stat'], XmaxTA2018['stat']),
                         fmt='s',markersize=6,elinewidth=3, c='tab:brown',alpha=0.7, label = "TA 2018")
 
 
-        plt.xlim(1e9,1e11)
-        plt.ylim(650,900)
-        plt.xlabel('E  [GeV]')
-        plt.ylabel(r'$\langle X_{max} \rangle$ [g cm$^{-2}$]')
+        self.plt.xlim(1e9,1e11)
+        self.plt.ylim(650,900)
+        self.plt.xlabel('E  [GeV]')
+        self.plt.ylabel(r'$\langle X_{max} \rangle$ [g cm$^{-2}$]')
         return ax_plots
         
     def plot_xmax_sigma(self, result, model, deltaE = 0.,xshift=0., ls = "solid", lw=2, label=None,auger_label=True):
@@ -1189,20 +1201,20 @@ class TDEsUI:
         import matplotlib.pyplot as plt
         
         for A, c, name in zip([1,4,14,56], ['red','gray','green','blue'],['H','He','N','Fe']):
-            sigmaXmax, sigmaXmax_part = np.sqrt(model.get_var_Xmax(np.log(A), 0., energy))
-            plt.semilogx(energy,sigmaXmax, color = c)
+            sigmaXmax, sigmaXmax_part = self.np.sqrt(model.get_var_Xmax(self.np.log(A), 0., energy))
+            self.plt.semilogx(energy,sigmaXmax, color = c)
             idx = self.find_nearest(energy,1e11)
-            plt.annotate(name,(energy[idx+1],sigmaXmax[idx]),color = c,annotation_clip=False)
+            self.plt.annotate(name,(energy[idx+1],sigmaXmax[idx]),color = c,annotation_clip=False)
 
-        sigmaXmax, sigmaXmax_part = np.sqrt(model.get_var_Xmax(mean_lnA, var_lnA, energy))
-        l, = plt.semilogx(energy,sigmaXmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
+        sigmaXmax, sigmaXmax_part = self.np.sqrt(model.get_var_Xmax(mean_lnA, var_lnA, energy))
+        l, = self.plt.semilogx(energy,sigmaXmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
         ax_plots.append(l)
 
         XRMS2019 = self.spectra_data['XRMS2019']
         XRMSTA2018 = self.spectra_data['XRMSTA2018']
         if self.plot_data_sets["cr"]["Auger"]:
-            xerr = np.array((XRMS2019['energy_Low'], XRMS2019['energy_Up']))
-            yerr = np.array((XRMS2019['sys_Low'], XRMS2019['sys_Up']))
+            xerr = self.np.array((XRMS2019['energy_Low'], XRMS2019['energy_Up']))
+            yerr = self.np.array((XRMS2019['sys_Low'], XRMS2019['sys_Up']))
             self.make_error_boxes(XRMS2019['energy'], XRMS2019['val'], xerr, yerr, facecolor='gray')
             
             if self.cr_syst["Auger"]["SigmaXmean"] > 0:
@@ -1210,14 +1222,14 @@ class TDEsUI:
             else:
                 xcorr = self.cr_syst["Auger"]["SigmaXmean"] * XRMS2019['sys_Low']/100
             
-            plt.errorbar(XRMS2019['energy'], XRMS2019['val'] + xcorr,
+            self.plt.errorbar(XRMS2019['energy'], XRMS2019['val'] + xcorr,
                         xerr=(XRMS2019['energy_Low'], XRMS2019['energy_Up']),
                         yerr=(XRMS2019['stat'], XRMS2019['stat']),
                         fmt='o',markersize=6, label='Auger 2019'*auger_label, c='black')
 
         if self.plot_data_sets["cr"]["TA"]:
-            xerrTA = np.array((XRMSTA2018['energy_Low'], XRMSTA2018['energy_Up']))
-            yerrTA = np.array((XRMSTA2018['sys_Low'], XRMSTA2018['sys_Up']))
+            xerrTA = self.np.array((XRMSTA2018['energy_Low'], XRMSTA2018['energy_Up']))
+            yerrTA = self.np.array((XRMSTA2018['sys_Low'], XRMSTA2018['sys_Up']))
             self.make_error_boxes(XRMSTA2018['energy'], XRMSTA2018['val'], xerrTA, yerrTA, facecolor='tab:brown',alpha=0.15)
             
             
@@ -1226,15 +1238,15 @@ class TDEsUI:
             else:
                 xcorrTA = self.cr_syst["TA"]["SigmaXmean"] * XRMSTA2018['sys_Low']/100
 
-            plt.errorbar(XRMSTA2018['energy'], XRMSTA2018['val'] + xcorrTA,
+            self.plt.errorbar(XRMSTA2018['energy'], XRMSTA2018['val'] + xcorrTA,
                         xerr=(XRMSTA2018['energy_Low'], XRMSTA2018['energy_Up']),
                         yerr=(XRMSTA2018['stat'], XRMSTA2018['stat']),
                         fmt='s',markersize=6,elinewidth=3, c='tab:brown',alpha=0.7, label = "TA 2019")
         
-        plt.xlim(1e9,1e11)
-        plt.ylim(10,70)
-        plt.xlabel('E  [GeV]')
-        plt.ylabel(r'$\sigma( X_{max})$ [g cm$^{-2}$]')
+        self.plt.xlim(1e9,1e11)
+        self.plt.ylim(10,70)
+        self.plt.xlabel('E  [GeV]')
+        self.plt.ylabel(r'$\sigma( X_{max})$ [g cm$^{-2}$]')
         return ax_plots
         
         
@@ -1244,8 +1256,8 @@ class TDEsUI:
         ls_source = '--' if ls is None else ls 
         ls_cosmo = '-.' if ls is None else ls
         ls_total = '-' if ls is None else ls
-        color_source = plt.rcParams['axes.prop_cycle'].by_key()['color'][0] if color is None else color
-        color_cosmo = plt.rcParams['axes.prop_cycle'].by_key()['color'][1] if color is None else color
+        color_source = self.plt.rcParams['axes.prop_cycle'].by_key()['color'][0] if color is None else color
+        color_cosmo = self.plt.rcParams['axes.prop_cycle'].by_key()['color'][1] if color is None else color
         color_total = 'saddlebrown' if color is None else color
         
 
@@ -1263,20 +1275,20 @@ class TDEsUI:
             
             uplims = HESE["upper_err"].value == 0
             xerr = (HESE['energy'].value * 0.3, HESE['energy'].value * 0.43)
-            plt.errorbar(HESE['energy'].value, 
+            self.plt.errorbar(HESE['energy'].value, 
                         HESE['flux'].value, 
                         (HESE["lower_err"].value,HESE["upper_err"].value),
                         uplims=uplims,
                         xerr=xerr,
                         ls='none',color='k')
-            plt.text(2e5, 7e-8, "HESE", color="k")
+            self.plt.text(2e5, 7e-8, "HESE", color="k")
             
             
         if self.plot_data_sets["nu"]["IC9yr"]:
             # Plot IceCube 9 years data
             ic_9yr = self.spectra_data['ic_9yr']
-            plt.loglog(ic_9yr['energy'], ic_9yr['limit'], color=sns.colors.xkcd_rgb['blue'], lw=1.7)
-            plt.text(8e6, 
+            self.plt.loglog(ic_9yr['energy'], ic_9yr['limit'], color=sns.colors.xkcd_rgb['blue'], lw=1.7)
+            self.plt.text(8e6, 
                     3e-8,
                     "IC 9 year",
                     color=sns.xkcd_rgb["blue"])
@@ -1284,8 +1296,8 @@ class TDEsUI:
         if self.plot_data_sets["nu"]["ICGen2"]:
             # Plot IceCube-Gen2 data
             gen2 = self.spectra_data['gen2']
-            plt.loglog(gen2['energy'], gen2['limit'], color='k', lw=0.9)
-            plt.text(2.7e7,
+            self.plt.loglog(gen2['energy'], gen2['limit'], color='k', lw=0.9)
+            self.plt.text(2.7e7,
                     gen2['limit'][int(gen2['limit'].size /15)]* .55, 
                     "IC Gen2",
                     color="k")
@@ -1293,8 +1305,8 @@ class TDEsUI:
             
         if self.plot_data_sets["nu"]["RNO-G"]:
             gen2 = self.spectra_data['rno_g_2020']
-            plt.loglog(rno_g_2020['energy'], rno_g_2020['limit']/2, color='tab:olive', lw=0.9)
-            plt.text(3.5e8, 
+            self.plt.loglog(rno_g_2020['energy'], rno_g_2020['limit']/2, color='tab:olive', lw=0.9)
+            self.plt.text(3.5e8, 
                     1e-8, 
                     "RNO-G", 
                     color="tab:olive")
@@ -1304,8 +1316,8 @@ class TDEsUI:
         if self.plot_data_sets["nu"]["GRAND200K"]:
             # Plot GRAND200k data
             GRAND200K_new = self.spectra_data['GRAND200K_new']
-            plt.loglog(GRAND200K_new['energy'], GRAND200K_new['limit'], color='r' , lw=0.9)
-            plt.text(1.6e9, 
+            self.plt.loglog(GRAND200K_new['energy'], GRAND200K_new['limit'], color='r' , lw=0.9)
+            self.plt.text(1.6e9, 
                     2.0e-9, 
                     "GRAND\n200k", 
                     color="r")
@@ -1314,8 +1326,8 @@ class TDEsUI:
         if self.plot_data_sets["nu"]["Auger2019"]:
                 # Plot Auger nu 2019 data
             PAO_nu_2019 = self.spectra_data['PAO_nu_2019']
-            plt.loglog(PAO_nu_2019['energy'], PAO_nu_2019['limit'], color='magenta', lw=0.9)
-            plt.text(PAO_nu_2019['energy'][0] * 2, 
+            self.plt.loglog(PAO_nu_2019['energy'], PAO_nu_2019['limit'], color='magenta', lw=0.9)
+            self.plt.text(PAO_nu_2019['energy'][0] * 2, 
                     PAO_nu_2019['limit'][0] * .5, 
                     "Auger 2019",
                     color='magenta')
@@ -1325,22 +1337,22 @@ class TDEsUI:
         cosmo_range = [11, 12, 13, 14]
         source_range = [16]
         # for i in range(11,16):
-        #     print(i, np.max(result.get_solution_group([i])[1]))
+        #     print(i, self.np.max(result.get_solution_group([i])[1]))
         source_nus = result.get_solution_group(source_range)
         cosmo_nus = result.get_solution_group(cosmo_range)
         ax_plots =[]
         if source:
-            l, =plt.loglog(source_nus[0], source_nus[1] / source_nus[0], label=label_source, lw=2, ls = ls_source,
+            l, =self.plt.loglog(source_nus[0], source_nus[1] / source_nus[0], label=label_source, lw=2, ls = ls_source,
                     color=color_source, alpha = 0.3)
             ax_plots.append(l)
 
         if cosmo:
-            l, =plt.loglog(cosmo_nus[0], cosmo_nus[1] / cosmo_nus[0], label=label_cosmo, lw =2, ls = ls_cosmo,
+            l, =self.plt.loglog(cosmo_nus[0], cosmo_nus[1] / cosmo_nus[0], label=label_cosmo, lw =2, ls = ls_cosmo,
                     color=color_cosmo, alpha=0.3)
             ax_plots.append(l)
 
         if total:
-            l, = plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = ls_total,
+            l, = self.plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = ls_total,
                     color=color_total, label=label_total)
             ax_plots.append(l)
         
@@ -1361,16 +1373,16 @@ class TDEsUI:
                 cosmo_nus  = res_tde.get_solution_group(cosmo_range)
                 
                     
-                plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = linestyle,
+                self.plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = linestyle,
                     color=color, label=label)
                 
                 
             
 
-        plt.legend(ncol=3,loc="upper center", frameon=1)
-        plt.axis([2e4,2e10, 1e-11, 9e-7])
-        plt.ylabel('$E^2 dN/dE$ [GeV cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
-        plt.xlabel('E [GeV]')
+        self.plt.legend(ncol=3,loc="upper center", frameon=1)
+        self.plt.axis([2e4,2e10, 1e-11, 9e-7])
+        self.plt.ylabel('$E^2 dN/dE$ [GeV cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
+        self.plt.xlabel('E [GeV]')
         return ax_plots
 
 
@@ -1379,8 +1391,8 @@ class TDEsUI:
         from prince_cr.solvers import UHECRPropagationResult
         
         # Load the shared egrid and known_spec from the new files
-        egrid = np.load("data_TDE/egrid.npy")
-        known_spec = np.load("data_TDE/known_spec.npy")
+        egrid = self.np.load("data_TDE/egrid.npy")
+        known_spec = self.np.load("data_TDE/known_spec.npy")
         input_spec = self.input_spec
         # Define labels to locate the state files based on index parameters
         label_dsg = f"{plot_index[0]}_{plot_index[1]}_{plot_index[2]}_"
@@ -1388,9 +1400,9 @@ class TDEsUI:
         label_aalc = f"{plot_index[6]}_{plot_index[7]}_{plot_index[8]}_"
         
         # Load the state data for DSG, FDR, and AALC based on the labels
-        data_dsg = [np.load(f"data_TDE/state_dsg_{label_dsg}{m}.npy") for m in range(len(input_spec))]
-        data_fdr = [np.load(f"data_TDE/state_fdr_{label_fdr}{m}.npy") for m in range(len(input_spec))]
-        data_aalc = [np.load(f"data_TDE/state_aalc_{label_aalc}{m}.npy") for m in range(len(input_spec))]
+        data_dsg = [self.np.load(f"data_TDE/state_dsg_{label_dsg}{m}.npy") for m in range(len(input_spec))]
+        data_fdr = [self.np.load(f"data_TDE/state_fdr_{label_fdr}{m}.npy") for m in range(len(input_spec))]
+        data_aalc = [self.np.load(f"data_TDE/state_aalc_{label_aalc}{m}.npy") for m in range(len(input_spec))]
         
         # Prepare dictionaries for each model containing egrid, known_spec, and state information
         dicts_dsg = [{'egrid': egrid, 'known_spec': known_spec, 'state': state} for state in data_dsg]
@@ -1414,17 +1426,17 @@ class TDEsUI:
         import numpy as np
         results_dsg, results_fdr, results_aalc = self.get_results_from_states(plot_index)
        
-        fraction_dsg = np.array(frac_lr['frac_dsg'])
-        fraction_fdr = np.array(frac_lr['frac_fdr'])
-        fraction_aalc = np.array(frac_lr['frac_aalc'])
+        fraction_dsg = self.np.array(frac_lr['frac_dsg'])
+        fraction_fdr = self.np.array(frac_lr['frac_fdr'])
+        fraction_aalc = self.np.array(frac_lr['frac_aalc'])
         
         lr_dsg = frac_lr['lr_dsg']
         lr_fdr = frac_lr['lr_fdr']
         lr_aalc = frac_lr['lr_aalc']
         
-        results_dsg = np.sum(results_dsg * fraction_dsg) *lr_dsg  
-        results_fdr = np.sum(results_fdr * fraction_fdr) *lr_fdr 
-        results_aalc = np.sum(results_aalc * fraction_aalc) *lr_aalc    
+        results_dsg = self.np.sum(results_dsg * fraction_dsg) *lr_dsg  
+        results_fdr = self.np.sum(results_fdr * fraction_fdr) *lr_fdr 
+        results_aalc = self.np.sum(results_aalc * fraction_aalc) *lr_aalc    
 
         return results_dsg, results_fdr, results_aalc
     
@@ -1450,15 +1462,15 @@ class TDEsUI:
         
         print()
         
-        sum_frac_dsg = np.sum(self.dsg_parameters["comp"]* np.log(Z*E_dsg_p_max/(A*E_p_min)))
-        lum_fraction_dsg = self.dsg_parameters["comp"] * np.log(Z*E_dsg_p_max/(A*E_p_min)) / sum_frac_dsg
+        sum_frac_dsg = self.np.sum(self.dsg_parameters["comp"]* self.np.log(Z*E_dsg_p_max/(A*E_p_min)))
+        lum_fraction_dsg = self.dsg_parameters["comp"] * self.np.log(Z*E_dsg_p_max/(A*E_p_min)) / sum_frac_dsg
         # print("DEBUG ", sum_frac_dsg, lum_fraction_dsg)
         
-        sum_frac_fdr = np.sum(self.fdr_parameters["comp"]* np.log(Z*E_fdr_p_max/(A*E_p_min)))
-        lum_fraction_fdr = self.fdr_parameters["comp"] * np.log(Z*E_fdr_p_max/(A*E_p_min)) / sum_frac_fdr
+        sum_frac_fdr = self.np.sum(self.fdr_parameters["comp"]* self.np.log(Z*E_fdr_p_max/(A*E_p_min)))
+        lum_fraction_fdr = self.fdr_parameters["comp"] * self.np.log(Z*E_fdr_p_max/(A*E_p_min)) / sum_frac_fdr
         
-        sum_frac_aalc = np.sum(self.aalc_parameters["comp"]* np.log(Z*E_aalc_p_max/(A*E_p_min)))
-        lum_fraction_aalc = self.aalc_parameters["comp"] * np.log(Z*E_aalc_p_max/(A*E_p_min)) / sum_frac_aalc
+        sum_frac_aalc = self.np.sum(self.aalc_parameters["comp"]* self.np.log(Z*E_aalc_p_max/(A*E_p_min)))
+        lum_fraction_aalc = self.aalc_parameters["comp"] * self.np.log(Z*E_aalc_p_max/(A*E_p_min)) / sum_frac_aalc
 
 
         self.plot_frac_lr = {
@@ -1481,7 +1493,7 @@ class TDEsUI:
         # print("I'm in the plot_data_simple")
         with self.plot_output:
             self.plot_output.clear_output(wait=True)
-            fig, axs = plt.subplots(2,2, figsize=(14,9.5), gridspec_kw={'height_ratios':(1,.63), 'hspace':.3, 'wspace':0.3})
+            fig, axs = self.plt.subplots(2,2, figsize=(14,9.5), gridspec_kw={'height_ratios':(1,.63), 'hspace':.3, 'wspace':0.3})
 
             self.get_scan_comb_result()
             self.change_xmax_model()
@@ -1492,29 +1504,29 @@ class TDEsUI:
             
             fig.sca(axs[0][0])
             self.axs_cr = self.plot_cosmic_rays(self.plot_results_comb, self.plot_results_each, label_E=label_E, label_offset=label_offset, label_alpha=label_alpha, plot_total_flux=plot_total_flux)
-            plt.fill_between([1e9,6e9*(1+np.min([self.cr_syst["Auger"]["E"], self.cr_syst["TA"]["E"]])/100)],1e-1,1e3,color='gray', alpha = 0.4)
+            self.plt.fill_between([1e9,6e9*(1+self.np.min([self.cr_syst["Auger"]["E"], self.cr_syst["TA"]["E"]])/100)],1e-1,1e3,color='gray', alpha = 0.4)
 
-            # plt.legend(loc="upper left")
+            # self.plt.legend(loc="upper left")
 
             fig.sca(axs[0][1])
             self.axs_nu = self.plot_neutrinos(self.plot_results_comb, self.plot_results_each, source=True, cosmo=True, total=plot_total_flux)
             
             fig.sca(axs[1][0])
             self.axs_xmax_mean = self.plot_xmax_mean(self.plot_results_comb, self.air_shower_model['model'], lw=2.5)
-            plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
-            plt.legend(loc='upper right')
+            self.plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
+            self.plt.legend(loc='upper right')
 
 
             fig.sca(axs[1][1])
             self.axs_xmax_sigma = self.plot_xmax_sigma(self.plot_results_comb, self.air_shower_model['model'], lw=2.5)
-            plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
-            plt.legend(loc='upper right')
+            self.plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
+            self.plt.legend(loc='upper right')
 
-            plt.suptitle(title, color = 'gray', fontsize = 26, weight = 'semibold', y=0.99)
+            self.plt.suptitle(title, color = 'gray', fontsize = 26, weight = 'semibold', y=0.99)
 
-            plt.tight_layout(rect=(0,0,1,.95))
-            plt.subplots_adjust(left= 0.08, right = 0.95, bottom=0.09, top=0.95)
-            plt.show()                          
+            self.plt.tight_layout(rect=(0,0,1,.95))
+            self.plt.subplots_adjust(left= 0.08, right = 0.95, bottom=0.09, top=0.95)
+            self.plt.show()                          
 
 
 
