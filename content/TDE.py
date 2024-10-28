@@ -7,6 +7,8 @@ class TDEsUI:
     import matplotlib.pyplot as plt
     import seaborn as sns
     from astropy.visualization import quantity_support
+    import pickle
+    import io
     def __init__(self):
         with open("spectra_data.pkl", "rb") as file:
             self.spectra_data = pickle.load(file)
