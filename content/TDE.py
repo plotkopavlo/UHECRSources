@@ -528,7 +528,7 @@ class TDEsUI:
 
     def create_grid_comp(self):
         import ipywidgets as widgets
-         from ipywidgets import GridspecLayout
+        from ipywidgets import GridspecLayout
         grid_comp = GridspecLayout(5, 3)
         grid_comp[0, 0] = widgets.HTML(value="<h2> Composition  </h2>")
         grid_comp[0, 1] = widgets.HTML()
