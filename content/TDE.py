@@ -1,6 +1,8 @@
 from ipywidgets import GridspecLayout, Layout, Box
 import ipywidgets as widgets
 import numpy as np
+import pickle
+import io
 class TDEsUI:
     def __init__(self):
         with open("spectra_data.pkl", "rb") as file:
