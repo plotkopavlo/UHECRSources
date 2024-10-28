@@ -17,8 +17,7 @@ class TDEsUI:
         from ipywidgets import GridspecLayout, Layout, Box
 
         self.GridspecLayout = GridspecLayout
-        self.Layout = Layout
-        self.Box = Box
+        Box = Box
         self.np = np
         
         self.pickle = pickle
@@ -506,8 +505,8 @@ class TDEsUI:
         #     return index_dsg, index_fdr, index_aalc
         # from prince_analysis_tools.plotter import ScanPlotterTDE
     def create_best_fit(self):
-
-        widget = self.widgets.ToggleButtons(
+        import ipywidgets as widgets
+        widget = widgets.ToggleButtons(
         options=['I want to play'] + list(self.parameters_best_fit_scenario.keys()),
         description='wchich scanraio you want to plot?:',
         disabled=False,
@@ -518,40 +517,45 @@ class TDEsUI:
         return widget
 
     def create_grid_param(self):
-        grid_param = self.widgets(4, 2)
-        grid_param[0, 0:1] = self.widgets.HTML(value="<h2>Parameters  </h2>")
-        grid_param[1, 0] = self.widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
-        grid_param[2, 0] = self.widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
-        grid_param[3, 0] = self.widgets.Dropdown(options=self.B_field.tolist(), description="B [G]", layout={'width': 'max-content'})
-        grid_param[1, 1] = self.widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1, description='local rate:', disabled=False, layout={'width': 'max-content'})
-        grid_param[2, 1] = self.widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'})
+        import ipywidgets as widgets
+        grid_param = widgets(4, 2)
+        grid_param[0, 0:1] = widgets.HTML(value="<h2>Parameters  </h2>")
+        grid_param[1, 0] = widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
+        grid_param[2, 0] = widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
+        grid_param[3, 0] = widgets.Dropdown(options=self.B_field.tolist(), description="B [G]", layout={'width': 'max-content'})
+        grid_param[1, 1] = widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1, description='local rate:', disabled=False, layout={'width': 'max-content'})
+        grid_param[2, 1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'})
         return grid_param
 
     def create_grid_comp(self):
-        grid_comp = self.GridspecLayout(5, 3)
-        grid_comp[0, 0] = self.widgets.HTML(value="<h2> Composition  </h2>")
-        grid_comp[0, 1] = self.widgets.HTML()
-        grid_comp[1:4, 0] = self.widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
-        grid_comp[1, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='He %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 1] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[1, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='O %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Na %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 2] = self.widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
+        import ipywidgets as widgets
+         from ipywidgets import GridspecLayout
+        grid_comp = GridspecLayout(5, 3)
+        grid_comp[0, 0] = widgets.HTML(value="<h2> Composition  </h2>")
+        grid_comp[0, 1] = widgets.HTML()
+        grid_comp[1:4, 0] = widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
+        grid_comp[1, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[2, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='He %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[3, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[4, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[1, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='O %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[2, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Na %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[3, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
+        grid_comp[4, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
         return grid_comp
 
     def create_grid_param_cr_data(self):
-        grid_param_cr_data = self.GridspecLayout(3, 1)
-        grid_param_cr_data[0, 0] = self.widgets.HTML(value="UHECR data")
+        import ipywidgets as widgets
+        from ipywidgets import GridspecLayout
+        grid_param_cr_data = GridspecLayout(3, 1)
+        grid_param_cr_data[0, 0] = widgets.HTML(value="UHECR data")
         
         descriptions = ['Auger 2019', 'TA 2019']
         keys = ['Auger', 'TA']
         initial_values = [True, False]  # Initial values for each checkbox
 
         for i, (desc, key, val) in enumerate(zip(descriptions, keys, initial_values), start=1):
-            checkbox = self.widgets.Checkbox(value=val, description=desc, disabled=False, indent=False)
+            checkbox = widgets.Checkbox(value=val, description=desc, disabled=False, indent=False)
             grid_param_cr_data[i, 0] = checkbox
             # Attach event handler
             checkbox.observe(lambda change, name=key: self.handle_cr_data_change(change, name), names='value')
@@ -559,13 +563,14 @@ class TDEsUI:
         return grid_param_cr_data
 
     def create_grid_param_nu_sets(self):
+        import ipywidgets as widgets
         grid_param_nu_sets = self.GridspecLayout(7, 1)
-        grid_param_nu_sets[0, 0] = self.widgets.HTML(value="Neutrino")
+        grid_param_nu_sets[0, 0] = widgets.HTML(value="Neutrino")
         descriptions = ['IceCube HESE', 'IceCube 9 years', 'IceCube-Gen2', 'RNO-G', 'GRAND200k', 'Auger 2019']
         keys = ['HESE', 'IC9yr', 'ICGen2', 'RNO-G', 'GRAND200K', 'Auger2019']
 
         for i, desc in enumerate(descriptions, start=1):
-            checkbox = self.widgets.Checkbox(value=True, description=desc, disabled=False, indent=False)
+            checkbox = widgets.Checkbox(value=True, description=desc, disabled=False, indent=False)
             grid_param_nu_sets[i, 0] = checkbox
             # Attach event handler
             checkbox.observe(lambda change, name=keys[i-1]: self.handle_nu_sens_change(change, name), names='value')
@@ -573,14 +578,18 @@ class TDEsUI:
         return grid_param_nu_sets
 
     def create_grid_param_air_shower_model(self):
-        # grid_param_plot = self.GridspecLayout(3, 1)
+        import ipywidgets as widgets
+        from ipywidgets import GridspecLayout
+        # grid_param_plot = GridspecLayout(3, 1)
         # grid_param_plot[1, 0] = self.create_grid_param_cr_data()
         # grid_param_plot[3, 0] = self.create_grid_param_nu_sets()
-        return self.widgets.RadioButtons(options=self.air_shower_model_names, description='Air Shower model:', disabled=False)
+        return widgets.RadioButtons(options=self.air_shower_model_names, description='Air Shower model:', disabled=False)
 
     def create_grid_param_syst_cr(self):
-        grid_param_plot = self.GridspecLayout(4, 2)
-        grid_param_plot[0, 0:2] = self.widgets.HTML(value="Systematics")  # Adjusted for spanning two columns
+        from ipywidgets import GridspecLayout
+        import ipywidgets as widgets
+        grid_param_plot = GridspecLayout(4, 2)
+        grid_param_plot[0, 0:2] = widgets.HTML(value="Systematics")  # Adjusted for spanning two columns
         
         # Define BoundedFloatText widgets and attach handlers
         self.descriptions_syst = [
@@ -590,7 +599,7 @@ class TDEsUI:
         for i, desc in enumerate(self.descriptions_syst):
             row, col = divmod(i, 3)  # Calculate row, column for placement
             # print(row, col)
-            widget = self.widgets.BoundedFloatText(
+            widget = widgets.BoundedFloatText(
                 value=0.0,
                 min=-3*14 if 'E' in desc else -300,
                 max=3*14 if 'E' in desc else 300,
@@ -621,9 +630,11 @@ class TDEsUI:
         # print(f"Updated {name} to {change['new']}")  # Optional: for debugging
 
     def create_grid_param_buttons(self):
-        grid_param_buttons = self.GridspecLayout(1, 4)
+        import ipywidgets as widgets
+        from ipywidgets import GridspecLayout
+        grid_param_buttons = GridspecLayout(1, 4)
 
-        grid_param_buttons[0, 0] = self.widgets.Button(
+        grid_param_buttons[0, 0] = widgets.Button(
             description='Create Plot',
             disabled=False,
             button_style='',  # 'success', 'info', 'warning', 'danger' or ''
@@ -631,7 +642,7 @@ class TDEsUI:
             icon='chart-line'  # FontAwesome icon names without the `fa-` prefix
         )
 
-        grid_param_buttons[0, 1] = self.widgets.Button(
+        grid_param_buttons[0, 1] = widgets.Button(
             description='Fit Data',
             disabled=False,
             button_style='',
@@ -639,7 +650,7 @@ class TDEsUI:
             icon='chart-bar'
         )
 
-        grid_param_buttons[0, 2] = self.widgets.Button(
+        grid_param_buttons[0, 2] = widgets.Button(
             description='Save Plot',
             disabled=False,
             button_style='',
@@ -647,7 +658,7 @@ class TDEsUI:
             icon='save'
         )
 
-        grid_param_buttons[0, 3] = self.widgets.Button(
+        grid_param_buttons[0, 3] = widgets.Button(
             description='Save Data',
             disabled=False,
             button_style='',
@@ -660,25 +671,27 @@ class TDEsUI:
 
 
     def setup_ui(self):
-        self.box_layout_column = self.Layout(display='flex',  flex_flow='column', align_items='stretch', border='solid', width='100%')
-        self.box_layout_column_no_borber = self.Layout(display='flex', flex_flow='column', align_items='stretch', border='none', width='100%')
-        self.box_layout_row = self.Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='solid', width='100%')
-        self.box_layout_row_no_border = self.Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='none', width='100%')
+        import ipywidgets as widgets
+        from ipywidgets import GridspecLayout, Layout, Box
+        self.box_layout_column = Layout(display='flex',  flex_flow='column', align_items='stretch', border='solid', width='100%')
+        self.box_layout_column_no_borber = Layout(display='flex', flex_flow='column', align_items='stretch', border='none', width='100%')
+        self.box_layout_row = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='solid', width='100%')
+        self.box_layout_row_no_border = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='none', width='100%')
 
         
         self.plotting_scanario = self.create_best_fit()
-        self.plotting_scanario_title = self.Box(children=[self.widgets.HTML(value="<h1>Predefined options</h1>"), self.plotting_scanario], layout=self.box_layout_column_no_borber)
+        self.plotting_scanario_title = Box(children=[widgets.HTML(value="<h1>Predefined options</h1>"), self.plotting_scanario], layout=self.box_layout_column_no_borber)
 
         
-        self.include_dsg = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_dsg = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_dsg = self.create_grid_param()
         self.grid_comp_dsg = self.create_grid_comp()
         
-        self.include_fdr = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_fdr = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_fdr = self.create_grid_param()
         self.grid_comp_fdr = self.create_grid_comp()
 
-        self.include_aalc = self.widgets.Checkbox(value=True, description='include to the plot', disabled=False)
+        self.include_aalc = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
         self.grid_param_aalc = self.create_grid_param()
         self.grid_comp_aalc = self.create_grid_comp()
 
@@ -688,29 +701,29 @@ class TDEsUI:
         self.plot_air_shower_model = self.create_grid_param_air_shower_model()
         self.buttons = self.create_grid_param_buttons()
 
-        self.plot_output = self.widgets.Output()
+        self.plot_output = widgets.Output()
 
-        self.box_dsg_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019dsg</h1>"), self.include_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg_parameters = self.Box(children=[self.grid_param_dsg, self.grid_comp_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg = self.Box(children=[self.box_dsg_title,self.box_dsg_parameters], layout=self.box_layout_column)
+        self.box_dsg_title = Box(children=[widgets.HTML(value="<h1>AT2019dsg</h1>"), self.include_dsg], layout=self.box_layout_row_no_border)
+        self.box_dsg_parameters = Box(children=[self.grid_param_dsg, self.grid_comp_dsg], layout=self.box_layout_row_no_border)
+        self.box_dsg = Box(children=[self.box_dsg_title,self.box_dsg_parameters], layout=self.box_layout_column)
 
-        self.box_fdr_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019fdr</h1>"), self.include_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr_parameters = self.Box(children=[self.grid_param_fdr, self.grid_comp_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr = self.Box(children=[self.box_fdr_title,self.box_fdr_parameters], layout=self.box_layout_column)
-
-
+        self.box_fdr_title = Box(children=[widgets.HTML(value="<h1>AT2019fdr</h1>"), self.include_fdr], layout=self.box_layout_row_no_border)
+        self.box_fdr_parameters = Box(children=[self.grid_param_fdr, self.grid_comp_fdr], layout=self.box_layout_row_no_border)
+        self.box_fdr = Box(children=[self.box_fdr_title,self.box_fdr_parameters], layout=self.box_layout_column)
 
 
-        self.box_aalc_title = self.Box(children=[self.widgets.HTML(value="<h1>AT2019aalc</h1>"), self.include_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc_parameters = self.Box(children=[self.grid_param_aalc, self.grid_comp_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc = self.Box(children=[self.box_aalc_title,self.box_aalc_parameters], layout=self.box_layout_column)
 
 
-        self.box_TDEs = self.Box(children=[self.box_dsg, self.box_fdr,self.box_aalc], layout=self.box_layout_column)  # Add all boxes here
+        self.box_aalc_title = Box(children=[widgets.HTML(value="<h1>AT2019aalc</h1>"), self.include_aalc], layout=self.box_layout_row_no_border)
+        self.box_aalc_parameters = Box(children=[self.grid_param_aalc, self.grid_comp_aalc], layout=self.box_layout_row_no_border)
+        self.box_aalc = Box(children=[self.box_aalc_title,self.box_aalc_parameters], layout=self.box_layout_column)
 
-        self.box_plot_param = self.Box(children=[self.plot_data_cr, self.plot_syst_cr, self.plot_air_shower_model, self.plot_data_nu], layout=self.box_layout_row_no_border)
 
-        self.box_ui= self.Box(children=[self.plotting_scanario_title,self.box_TDEs, self.box_plot_param, self.buttons, self.plot_output], layout=self.box_layout_column) 
+        self.box_TDEs = Box(children=[self.box_dsg, self.box_fdr,self.box_aalc], layout=self.box_layout_column)  # Add all boxes here
+
+        self.box_plot_param = Box(children=[self.plot_data_cr, self.plot_syst_cr, self.plot_air_shower_model, self.plot_data_nu], layout=self.box_layout_row_no_border)
+
+        self.box_ui= Box(children=[self.plotting_scanario_title,self.box_TDEs, self.box_plot_param, self.buttons, self.plot_output], layout=self.box_layout_column) 
         self.plot_data_simple
         self.attach_event_handlers()
 
