@@ -11,6 +11,7 @@ class TDEsUI:
     import io
     def __init__(self):
         import pickle
+        import numpy as np
         with open("spectra_data.pkl", "rb") as file:
             self.spectra_data = pickle.load(file)
         self.radius = np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
@@ -491,14 +492,6 @@ class TDEsUI:
             
             return index_dsg, index_fdr, index_aalc
         from prince_analysis_tools.plotter import ScanPlotterTDE
-        self.scan  = ScanPlotterTDE(self.filepath, self.input_spec, self.paramlist_fit, 
-                                                                        get_index, 
-                                                                        data_folder = self.data_folder,
-                                                                        data_set = self.data_set,
-                                                                        escape_type = self.escape_type,
-                                                                        fit=self.fit,
-                                                                        chi2list=self.chi2_list)
-        
     def create_best_fit(self):
 
         widget = widgets.ToggleButtons(
@@ -859,6 +852,7 @@ class TDEsUI:
         self.grid_comp_aalc[3, 2].disabled = disable_value
 
     def handle_comp_dsg_change(self, change):
+        import numpy as np
         total_comp = sum(self.grid_comp_dsg[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_dsg[4, 2].value
         if total_comp > 100 +1e-4:
             # raise Exception("Error: total composition > 100")
@@ -873,6 +867,7 @@ class TDEsUI:
 
 
     def handle_comp_fdr_change(self, change):
+        import numpy as np
         total_comp = sum(self.grid_comp_fdr[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_fdr[4, 2].value
         if total_comp > 100 +1e-4:
             self.grid_comp_fdr[0, 1].value = self.error_comp_massage 
@@ -884,6 +879,7 @@ class TDEsUI:
             self.fdr_parameters["comp"] = np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
 
     def handle_comp_aalc_change(self, change):
+        import numpy as np
         total_comp = sum(self.grid_comp_aalc[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_aalc[4, 2].value
         print(total_comp)
         if total_comp > 100 +1e-4:
@@ -958,33 +954,41 @@ class TDEsUI:
 
 
     def handle_radius_dsg_change(self, change):
+        import numpy as np
         self.dsg_parameters["radius_index"] =np.where(change['new'] == self.radius)[0][0]
         # self.radius_dsg_value = self.radius_values[self.dsg_parameters["radius_index"]]
 
     def handle_r_max_dsg_change(self, change):
+        import numpy as np
         self.dsg_parameters["r_max_index"] = np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_dsg_change(self, change):
+        import numpy as np
         self.dsg_parameters["b_field_index"] =  np.where(change['new'] == self.B_field)[0][0]
 
 
     def handle_radius_fdr_change(self, change):
+        import numpy as np
         self.fdr_parameters["radius_index"] = np.where(change['new'] == self.radius)[0][0]
         # self.radius_fdr_value = self.radius_values[self.fdr_parameters["radius_index"]]
     
 
     def handle_r_max_fdr_change(self, change):
+        import numpy as np
         self.fdr_parameters["r_max_index"] = np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_fdr_change(self, change):
+        import numpy as np
         self.fdr_parameters["b_field_index"] = np.where(change['new'] == self.B_field)[0][0]
 
 
     def handle_radius_aalc_change(self, change):
+        import numpy as np
         self.aalc_parameters["radius_index"]= np.where(change['new'] == self.radius)[0][0]
         # self.radius_aalc_value = self.radius_values[self.aalc_parameters["radius_index"]]
 
     def handle_r_max_aalc_change(self, change):
+        import numpy as np
         self.aalc_parameters["r_max_index"] =  np.where(change['new'] == self.rigidity_max)[0][0]
 
     def handle_b_field_aalc_change(self, change):
@@ -1015,6 +1019,7 @@ class TDEsUI:
             print("ERROR: The name of the air shower model is incorrect.")
 
     def plot_cosmic_rays(self, result_comb, result_each_tde = None, ls='solid', labels_on=True, label_E=2e11, label_offset=1.0,label_alpha=0.2, plot_total_flux=True ):
+        import numpy as np
         import matplotlib.pyplot as plt
         from prince_cr.util import get_AZN
         auger2019 = self.spectra_data['auger2019']
@@ -1109,11 +1114,13 @@ class TDEsUI:
 
 
     def find_nearest(self, array, value):
+        import numpy as np
         array = np.asarray(array)
         idx = (np.abs(array - value)).argmin()
         return idx
 
     def plot_xmax_mean(self, result, model, ls = "solid", lw=2, label=None, auger_label=True):
+        import numpy as np
         egrid, average, variance = result.get_lnA([el for el in result.known_species if el >= 100])
         energy = egrid
         mean_lnA = average
@@ -1173,6 +1180,7 @@ class TDEsUI:
         return ax_plots
         
     def plot_xmax_sigma(self, result, model, deltaE = 0.,xshift=0., ls = "solid", lw=2, label=None,auger_label=True):
+        import numpy as np
         egrid, average, variance = result.get_lnA([el for el in result.known_species if el >= 100])
         energy = egrid
         mean_lnA = average
@@ -1232,7 +1240,7 @@ class TDEsUI:
         
 
     def plot_neutrinos(self, result,result_each_tde=None,  source=True, cosmo=True, total=False, ls=None,color=None,label=None,loc=None,plot_data=True,lw=3.):
-            
+        import numpy as np    
         ls_source = '--' if ls is None else ls 
         ls_cosmo = '-.' if ls is None else ls
         ls_total = '-' if ls is None else ls
@@ -1367,6 +1375,7 @@ class TDEsUI:
 
 
     def get_results_from_states(self, plot_index):
+        import numpy as np
         from prince_cr.solvers import UHECRPropagationResult
         
         # Load the shared egrid and known_spec from the new files
@@ -1402,6 +1411,7 @@ class TDEsUI:
         return results_dsg + results_fdr + results_aalc
     
     def get_each_type_result(self, plot_index, frac_lr):
+        import numpy as np
         results_dsg, results_fdr, results_aalc = self.get_results_from_states(plot_index)
        
         fraction_dsg = np.array(frac_lr['frac_dsg'])
@@ -1421,6 +1431,7 @@ class TDEsUI:
             
     def get_scan_comb_result(self):
         import astropy.units as u
+        import numpy as np
         self.plot_index = (self.dsg_parameters["radius_index"],self.dsg_parameters["r_max_index"],self.dsg_parameters["b_field_index"],
                  self.fdr_parameters["radius_index"],self.fdr_parameters["r_max_index"],self.fdr_parameters["b_field_index"],
                  self.aalc_parameters["radius_index"],self.aalc_parameters["r_max_index"],self.aalc_parameters["b_field_index"],)
@@ -1466,6 +1477,7 @@ class TDEsUI:
 
     
     def plot_data_simple(self, title="Test plot", label_E=2.8e11, label_offset=0.5, label_alpha=0.2, plot_total_flux=True ):
+        import numpy as np
         # print("I'm in the plot_data_simple")
         with self.plot_output:
             self.plot_output.clear_output(wait=True)
