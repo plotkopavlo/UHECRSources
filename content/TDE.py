@@ -491,19 +491,20 @@ class TDEsUI:
         self.Z = self.np.array([1, 2,  6,  7,  8, 11, 14, 26])
         self.E_p_min = 1
 
-        self.setup_scan()
+        # self.setup_scan()
         self.setup_ui()
 
     
 
-    def setup_scan(self):
-        def get_index(index):
-            index_dsg = {'radius': index[0],'rigidity_max': index[1], 'B_value': index[2]} 
-            index_fdr = {'radius': index[3],'rigidity_max': index[4], 'B_value': index[5]} 
-            index_aalc = {'radius': index[6],'rigidity_max': index[7], 'B_value': index[8]}
+    # def setup_scan(self):
+        
+        # def get_index(index):
+        #     index_dsg = {'radius': index[0],'rigidity_max': index[1], 'B_value': index[2]} 
+        #     index_fdr = {'radius': index[3],'rigidity_max': index[4], 'B_value': index[5]} 
+        #     index_aalc = {'radius': index[6],'rigidity_max': index[7], 'B_value': index[8]}
             
-            return index_dsg, index_fdr, index_aalc
-        from prince_analysis_tools.plotter import ScanPlotterTDE
+        #     return index_dsg, index_fdr, index_aalc
+        # from prince_analysis_tools.plotter import ScanPlotterTDE
     def create_best_fit(self):
 
         widget = self.widgets.ToggleButtons(
