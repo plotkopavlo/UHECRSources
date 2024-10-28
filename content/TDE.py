@@ -4,7 +4,6 @@ class TDEsUI:
     import numpy as np
     import io
     import matplotlib.pyplot as plt
-    import seaborn as sns
     from astropy.visualization import quantity_support
     import pickle
     
@@ -1301,11 +1300,11 @@ class TDEsUI:
         if self.plot_data_sets["nu"]["IC9yr"]:
             # Plot IceCube 9 years data
             ic_9yr = self.spectra_data['ic_9yr']
-            self.plt.loglog(ic_9yr['energy'], ic_9yr['limit'], color=sns.colors.xkcd_rgb['blue'], lw=1.7)
+            self.plt.loglog(ic_9yr['energy'], ic_9yr['limit'], color='blue', lw=1.7)
             self.plt.text(8e6, 
                     3e-8,
                     "IC 9 year",
-                    color=sns.xkcd_rgb["blue"])
+                    color="blue")
             
         if self.plot_data_sets["nu"]["ICGen2"]:
             # Plot IceCube-Gen2 data
