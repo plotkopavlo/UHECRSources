@@ -517,7 +517,8 @@ class TDEsUI:
 
     def create_grid_param(self):
         import ipywidgets as widgets
-        grid_param = widgets(4, 2)
+        from ipywidgets import GridspecLayout
+        grid_param = GridspecLayout(4, 2)
         grid_param[0, 0:1] = widgets.HTML(value="<h2>Parameters  </h2>")
         grid_param[1, 0] = widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
         grid_param[2, 0] = widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
