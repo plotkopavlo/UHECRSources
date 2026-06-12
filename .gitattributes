@@ -1,0 +1,15 @@
+# Normalize line endings: store everything with LF in the repo,
+# check out with the platform's native endings. Prevents CRLF churn
+# from cross-platform editing / Nextcloud sync.
+* text=auto eol=lf
+
+# Treat notebooks as text so diffs/normalization apply
+*.ipynb text eol=lf
+
+# Binary assets — never touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
