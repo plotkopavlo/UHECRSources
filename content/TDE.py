@@ -54,7 +54,18 @@ COMPOSITIONS = {
 }
 COMP_TYPES = ["MS", "RSG", "WR", "CO-WD", "ONeMg-WD", "Free"]
 
-AIR_SHOWER_MODELS = ["EPOS-LHC", "SIBYLL2.3d", "SIBYLL2.3c", "QGSJET-II04"]
+# Air-shower Xmax models: (UI label, XmaxSimple parameter set, available?).
+# SIBYLL2.3d has no parametrisation in the vendored set yet, so it is shown but
+# not selectable until those coefficients are added.
+AIR_SHOWER_MODELS = [
+    ("EPOS-LHC",    "EPOS",      True),
+    ("SIBYLL2.3c",  "Sibyll23",  True),
+    ("SIBYLL2.3d",  "Sibyll23d", False),
+    ("QGSJET-II04", "QGSJetII",  True),
+]
+AIR_SHOWER_XMAX = {name: attr for name, attr, _ in AIR_SHOWER_MODELS}
+AIR_SHOWER_ENABLED = {name: ok for name, _, ok in AIR_SHOWER_MODELS}
+DEFAULT_AIR_SHOWER = "EPOS-LHC"
 
 # Per-event plotting style (colour shared between UI cards and curves).
 TDE_STYLES = {
@@ -120,6 +131,50 @@ _CSS = """
 .tde-app .widget-button { border-radius:9px; }
 </style>
 """
+
+
+# --------------------------------------------------------------------------- #
+# <Xmax> / sigma(Xmax) parametrisation (arXiv:1301.6637).                      #
+# Vendored from prince_analysis_tools so the tool is self-contained in the     #
+# browser. EPOS and QGSJetII are from the public paper; Sibyll23 is the        #
+# Auger-internal set, included with permission.                               #
+# --------------------------------------------------------------------------- #
+
+def _named(values, name="ParamSet"):
+    from collections import namedtuple
+    return namedtuple(name, list(values))(**values)
+
+
+class XmaxSimple:
+    """Mean and variance of Xmax as a function of <lnA> and energy."""
+
+    EPOS = _named({"X0": 809.7, "D": 62.2, "xi": 0.78, "delta": 0.08,
+                   "p0": 3279, "p1": -47, "p2": 228,
+                   "a0": -0.461, "a1": -0.0041, "b": 0.059, "E0": 1e10}, "EPOS")
+    Sibyll23 = _named({"X0": 824.3, "D": 58.4, "xi": -0.38, "delta": 0.59,
+                       "p0": 3810, "p1": -405, "p2": 125,
+                       "a0": -0.406, "a1": -0.0016, "b": 0.047, "E0": 1e10}, "Sibyll23")
+    QGSJetII = _named({"X0": 781.8, "D": 45.8, "xi": -1.13, "delta": 1.71,
+                       "p0": 3163, "p1": -237, "p2": 60,
+                       "a0": -0.386, "a1": -0.0006, "b": 0.043, "E0": 1e10}, "QGSJetII")
+
+    def __init__(self, model=None):
+        self.model = self.EPOS if model is None else model
+
+    def get_mean_Xmax(self, mean_lnA, E):
+        m = self.model
+        Xmax_proton = m.X0 + m.D * np.log10(E / m.E0)
+        fE = m.xi - m.D / np.log(10) + m.delta * np.log10(E / m.E0)
+        return Xmax_proton + fE * mean_lnA
+
+    def get_var_Xmax(self, mean_lnA, var_lnA, E):
+        m = self.model
+        fE = m.xi - m.D / np.log(10) + m.delta * np.log10(E / m.E0)
+        var_proton = m.p0 + m.p1 * np.log10(E / m.E0) + m.p2 * np.log10(E / m.E0) ** 2
+        a = m.a0 + m.a1 * np.log10(E / m.E0)
+        mean_lnA2 = var_lnA + mean_lnA ** 2
+        mean_var_sh = var_proton * (1 + a * mean_lnA + m.b * mean_lnA2)
+        return mean_var_sh + fE ** 2 * var_lnA, mean_var_sh
 
 
 # --------------------------------------------------------------------------- #
@@ -307,7 +362,8 @@ class TDEsUI:
         with open("spectra_data.pkl", "rb") as fh:
             self.spectra_data = pickle.load(fh)
 
-        self.air_shower_model = {"name": "EPOS-LHC", "model": None}
+        self.air_shower_model = {"name": DEFAULT_AIR_SHOWER, "model": None}
+        self._reverting = False  # guard for the air-shower revert-on-select
         self.cr_syst = {key: {"E": 0.0, "Xmean": 0.0, "SigmaXmean": 0.0}
                         for key in ("Auger", "TA")}
         self.plot_data_sets = {
@@ -376,8 +432,12 @@ class TDEsUI:
              ("IceCube-Gen2", "ICGen2", True), ("RNO-G", "RNO-G", True),
              ("GRAND200k", "GRAND200K", True), ("Auger 2019", "Auger2019", True)],
             self._on_nu_data)
+        airshower_options = [
+            (name if ok else f"{name}  (coming soon)", name)
+            for name, _, ok in AIR_SHOWER_MODELS]
         self.airshower_radio = widgets.RadioButtons(
-            options=AIR_SHOWER_MODELS, description="Air shower:")
+            options=airshower_options, value=DEFAULT_AIR_SHOWER, description="Air shower:")
+        self.airshower_warn = HTML()
         self.airshower_radio.observe(self._on_airshower, names="value")
         self.syst_grid = self._make_syst_grid()
 
@@ -387,7 +447,8 @@ class TDEsUI:
             HBox([
                 VBox([HTML("<b>UHECR data</b>")] + self.cr_checks),
                 VBox([HTML("<b>Neutrino data</b>")] + self.nu_checks),
-                VBox([HTML("<b>Air-shower model</b>"), self.airshower_radio]),
+                VBox([HTML("<b>Air-shower model</b>"), self.airshower_radio,
+                      self.airshower_warn]),
                 VBox([HTML("<b>Systematics [%]</b>"), self.syst_grid]),
             ]),
         ])
@@ -442,7 +503,21 @@ class TDEsUI:
         self.plot_data_sets["nu"][name] = value
 
     def _on_airshower(self, change):
-        self.air_shower_model["name"] = change["new"]
+        if self._reverting:
+            return
+        name = change["new"]
+        if not AIR_SHOWER_ENABLED[name]:
+            prev = change["old"] if AIR_SHOWER_ENABLED.get(change["old"]) else DEFAULT_AIR_SHOWER
+            self._reverting = True
+            self.airshower_radio.value = prev
+            self._reverting = False
+            self.air_shower_model["name"] = prev
+            self.airshower_warn.value = (
+                f'<span style="color:#c0392b;">{name} is not available yet '
+                f'— using {prev}.</span>')
+            return
+        self.air_shower_model["name"] = name
+        self.airshower_warn.value = ""
 
     def _on_syst(self, detector, field, value):
         self.cr_syst[detector][field] = value
@@ -517,19 +592,12 @@ class TDEsUI:
         self.plot_results_comb = self.get_comb_result(self.plot_index, frac_lr)
         self.plot_results_each = self.get_each_type_result(self.plot_index, frac_lr)
 
-    def change_xmax_model(self, filename="air_shower_models.pkl"):
-        with open(filename, "rb") as fh:
-            XmaxSimple = pickle.load(fh)
-        mapping = {
-            "EPOS-LHC": "EPOS",
-            "SIBYLL2.3c": "Sibyll23",
-            "SIBYLL2.3d": "Sibyll23d",
-            "QGSJET-II04": "QGSJetII",
-        }
+    def change_xmax_model(self):
         name = self.air_shower_model["name"]
-        if name not in mapping:
-            raise ValueError(f"Unknown air-shower model: {name}")
-        self.air_shower_model["model"] = XmaxSimple(model=getattr(XmaxSimple, mapping[name]))
+        attr = AIR_SHOWER_XMAX.get(name)
+        if attr is None or not hasattr(XmaxSimple, attr):
+            raise ValueError(f"No Xmax parametrisation for air-shower model {name!r}")
+        self.air_shower_model["model"] = XmaxSimple(getattr(XmaxSimple, attr))
 
     # ---- helpers ------------------------------------------------------- #
 
