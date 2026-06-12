@@ -1,1611 +1,827 @@
+"""Interactive UHECR + neutrino model explorer for three tidal disruption events.
+
+The tool overlays precomputed PriNCe cosmic-ray propagation results for
+AT2019dsg, AT2019fdr and AT2019aalc on top of the measured cosmic-ray spectrum,
+<Xmax>, sigma(Xmax) and neutrino fluxes (Auger / TA / IceCube / RNO-G / GRAND).
+
+It is designed to run in JupyterLite (Pyodide). The heavy propagation is done
+offline; here we only load the `state_*.npy` grids, weight them by the chosen
+source composition and local rate, and plot the result against data.
+
+Usage (inside the notebook)::
+
+    ui = TDEsUI()
+    ui.display()
+"""
+
+import pickle
+
+import numpy as np
+import matplotlib.pyplot as plt
+import ipywidgets as widgets
+from ipywidgets import GridspecLayout, VBox, HBox, HTML
+from IPython.display import display
+
+# --------------------------------------------------------------------------- #
+# Physics constants / static configuration                                    #
+# --------------------------------------------------------------------------- #
+
+# The three modelled tidal disruption events.
+SCENARIOS = ("dsg", "fdr", "aalc")
+SCENARIO_LABELS = {"dsg": "AT2019dsg", "fdr": "AT2019fdr", "aalc": "AT2019aalc"}
+
+# Injected nuclei. ELEMENTS, A_NUCLEI, Z_NUCLEI and INPUT_SPEC are all in the
+# SAME order; every composition array follows this order too.
+ELEMENTS = ("H", "He", "C", "N", "O", "Na", "Si", "Fe")
+A_NUCLEI = np.array([1, 4, 12, 14, 16, 23, 28, 56])
+Z_NUCLEI = np.array([1, 2, 6, 7, 8, 11, 14, 26])
+INPUT_SPEC = [101, 402, 1206, 1407, 1608, 2311, 2814, 5626]
+
+# Source-parameter grids (index into the precomputed states).
+RADIUS = np.array([5.00e16, 7.34e16, 1.08e17, 1.58e17, 2.32e17, 3.41e17,
+                   5.00e17, 7.34e17, 1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
+RIGIDITY_MAX = np.array([1.00e9, 1.39e9, 1.92e9, 2.66e9, 3.68e9, 5.10e9,
+                         7.07e9, 9.80e9, 1.36e10, 1.88e10, 2.61e10, 3.61e10, 5.00e10]) / 1e9
+B_FIELD = np.array([0.1])
+
+# Stellar-abundance presets (fractions per element, summing to ~1).
+COMPOSITIONS = {
+    "MS":       np.array([73.9, 24.7, 0.22, 0.07, 0.63, 0.23, 0.07, 0.12]) / 100,
+    "RSG":      np.array([46.46, 36.74, 0.95, 0.30, 2.72, 0.99, 0.3, 0.52]) / 100,
+    "WR":       np.array([0.00633, 98.1, 0.0292, 1.33, 0.0321, 0.2573, 0.0734, 0.136]) / 100,
+    "CO-WD":    np.array([1e-5, 1e-5, 50, 1e-5, 50, 1e-5, 1e-5, 1e-5]) / 100,
+    "ONeMg-WD": np.array([1e-5, 1e-5, 1e-5, 1e-5, 12, 88, 1e-5, 1e-5]) / 100,
+}
+COMP_TYPES = ["MS", "RSG", "WR", "CO-WD", "ONeMg-WD", "Free"]
+
+AIR_SHOWER_MODELS = ["EPOS-LHC", "SIBYLL2.3d", "SIBYLL2.3c", "QGSJET-II04"]
+
+# Per-event plotting style (colour shared between UI cards and curves).
+TDE_STYLES = {
+    "dsg":  {"ls": ":",  "marker": "^", "color": (43 / 255, 59 / 255, 74 / 255)},
+    "fdr":  {"ls": "--", "marker": "D", "color": (147 / 255, 4 / 255, 22 / 255)},
+    "aalc": {"ls": "-.", "marker": "s", "color": (234 / 255, 182 / 255, 77 / 255)},
+}
+
+# Best-fit presets. Per event: (comp_type, local_rate, radius_index, r_max_index).
+# `syst` holds the Auger (E, <Xmax>, sigma) systematic shifts in percent.
+PRESETS = {
+    "Star Mass Abundance": {
+        "dsg":  ("ONeMg-WD", 32.45, 4, 4),
+        "fdr":  ("WR",        5.23, 3, 10),
+        "aalc": ("ONeMg-WD", 32.45, 4, 4),
+        "syst": (-8.3, -148, 0.0),
+    },
+    "MS star": {
+        "dsg":  ("MS", 220.24, 10, 3),
+        "fdr":  ("MS", 220.24, 12, 8),
+        "aalc": ("MS", 220.24, 10, 3),
+        "syst": (-42.0, 300, 0.0),
+    },
+    "RSG star": {
+        "dsg":  ("RSG", 238.55, 9, 1),
+        "fdr":  ("RSG", 238.55, 12, 8),
+        "aalc": ("RSG", 238.55, 9, 1),
+        "syst": (-42.0, 300, 0.0),
+    },
+    "WR star": {
+        "dsg":  ("WR", 130.92, 4, 2),
+        "fdr":  ("WR", 130.92, 12, 9),
+        "aalc": ("WR", 130.92, 4, 2),
+        "syst": (19.4, 181, 0.0),
+    },
+    "CO-WD": {
+        "dsg":  ("CO-WD", 63.76, 9, 5),
+        "fdr":  ("CO-WD", 63.76, 12, 9),
+        "aalc": ("CO-WD", 63.76, 8, 2),
+        "syst": (-42.0, 300, 0.0),
+    },
+}
+
+ERROR_MSG = '<span style="color:#c0392b;font-weight:600;">Composition exceeds 100%</span>'
+
+# Injected into the page once so the widgets look like cards rather than a stack
+# of bordered boxes.
+_CSS = """
+<style>
+.tde-app { max-width: 1180px; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+.tde-header { background: linear-gradient(135deg,#2b3b4a 0%,#3d5a73 100%);
+    color:#fff; padding:18px 22px; border-radius:14px; margin-bottom:6px; }
+.tde-header h1 { margin:0; font-size:22px; font-weight:650; }
+.tde-header p { margin:6px 0 0; font-size:13px; opacity:.85; line-height:1.5; }
+.tde-card { border:1px solid #e6e8eb; border-radius:14px; padding:8px 16px 14px;
+    margin:10px 0; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.tde-card-dsg  { border-left:6px solid rgb(43,59,74); }
+.tde-card-fdr  { border-left:6px solid rgb(147,4,22); }
+.tde-card-aalc { border-left:6px solid rgb(234,182,77); }
+.tde-card-title { font-size:16px; font-weight:600; color:#2b3b4a; }
+.tde-section-title { font-size:13px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; color:#7a8794; margin:2px 0 6px; }
+.tde-app .widget-button { border-radius:9px; }
+</style>
+"""
+
+
+# --------------------------------------------------------------------------- #
+# One tidal disruption event: its parameters, widgets and event handlers.     #
+# Collapsing the former dsg/fdr/aalc triplication into a single class makes    #
+# whole classes of copy-paste bugs impossible.                                #
+# --------------------------------------------------------------------------- #
+
+class Scenario:
+    def __init__(self, key):
+        self.key = key
+        self.label = SCENARIO_LABELS[key]
+        self.style = TDE_STYLES[key]
+        self.params = {
+            "local_rate": 50.0,
+            "z": 0.020,
+            "radius_index": 0,
+            "r_max_index": 0,
+            "b_field_index": 0,
+            "comp": np.full(8, 0.125),
+            "comp_checked": True,
+            "include": True,
+        }
+        self._updating = False  # guard against observer recursion
+        self._build_widgets()
+        self._wire()
+
+    # ---- widget construction ------------------------------------------- #
+
+    def _build_widgets(self):
+        cell = {"width": "max-content"}
+
+        self.w_include = widgets.Checkbox(value=True, description="include in plot")
+
+        self.w_radius = widgets.Dropdown(options=RADIUS.tolist(), value=RADIUS[0],
+                                         description="Radius [cm]", layout=cell)
+        self.w_rmax = widgets.Dropdown(options=RIGIDITY_MAX.tolist(), value=RIGIDITY_MAX[0],
+                                       description="R_max [1e9 GV]", layout=cell)
+        self.w_bfield = widgets.Dropdown(options=B_FIELD.tolist(), value=B_FIELD[0],
+                                         description="B [G]", layout=cell)
+        self.w_local_rate = widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1,
+                                                     description="local rate:", layout=cell)
+        self.w_redshift = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001,
+                                                   description="redshift:", layout=cell)
+
+        param = GridspecLayout(3, 2)
+        param[0, 0] = self.w_radius
+        param[1, 0] = self.w_rmax
+        param[2, 0] = self.w_bfield
+        param[0, 1] = self.w_local_rate
+        param[1, 1] = self.w_redshift
+        self.param_grid = param
+
+        self.w_comp_type = widgets.RadioButtons(options=COMP_TYPES, value="Free",
+                                                description="Type:")
+        self.w_msg = widgets.HTML()
+        self.w_elem = {
+            e: widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1,
+                                        description=f"{e} %:",
+                                        disabled=(e == "Fe"), layout=cell)
+            for e in ELEMENTS
+        }
+
+        comp = GridspecLayout(4, 3)
+        comp[0, 0] = self.w_comp_type
+        comp[3, 0] = self.w_msg
+        # Column-major fill so the on-screen grid matches the A/Z element order.
+        for n, e in enumerate(ELEMENTS):
+            comp[n % 4, 1 + n // 4] = self.w_elem[e]
+        self.comp_grid = comp
+
+    def card(self):
+        """Return the styled widget card for this event."""
+        title = HBox([HTML(f'<span class="tde-card-title">{self.label}</span>'),
+                      self.w_include])
+        body = HBox([self.param_grid, self.comp_grid])
+        box = VBox([title, body])
+        box.add_class("tde-card")
+        box.add_class(f"tde-card-{self.key}")
+        return box
+
+    # ---- event wiring -------------------------------------------------- #
+
+    def _wire(self):
+        self.w_radius.observe(self._on_radius, names="value")
+        self.w_rmax.observe(self._on_rmax, names="value")
+        self.w_bfield.observe(self._on_bfield, names="value")
+        self.w_local_rate.observe(self._on_local_rate, names="value")
+        self.w_redshift.observe(self._on_redshift, names="value")
+        self.w_comp_type.observe(self._on_comp_type, names="value")
+        self.w_include.observe(self._on_include, names="value")
+        for e in ELEMENTS:
+            if e != "Fe":
+                self.w_elem[e].observe(self._on_comp_value, names="value")
+
+    def _on_radius(self, change):
+        self.params["radius_index"] = int(np.where(RADIUS == change["new"])[0][0])
+
+    def _on_rmax(self, change):
+        self.params["r_max_index"] = int(np.where(RIGIDITY_MAX == change["new"])[0][0])
+
+    def _on_bfield(self, change):
+        self.params["b_field_index"] = int(np.where(B_FIELD == change["new"])[0][0])
+
+    def _on_local_rate(self, change):
+        self.params["local_rate"] = change["new"]
+
+    def _on_redshift(self, change):
+        self.params["z"] = change["new"]
+
+    def _on_comp_type(self, change):
+        new = change["new"]
+        free = (new == "Free")
+        if not free:
+            self._updating = True
+            for e, frac in zip(ELEMENTS, COMPOSITIONS[new]):
+                self.w_elem[e].value = frac * 100
+            self.params["comp"] = COMPOSITIONS[new].copy()
+            self.params["comp_checked"] = True
+            self.w_msg.value = ""
+            self._updating = False
+        else:
+            self._on_comp_value()
+        for e in ELEMENTS:
+            if e != "Fe":
+                self.w_elem[e].disabled = not free
+
+    def _on_comp_value(self, change=None):
+        """Recompute the free composition; Fe is the remainder up to 100%."""
+        if self._updating:
+            return
+        editable = sum(self.w_elem[e].value for e in ELEMENTS if e != "Fe")
+        if editable > 100 + 1e-4:
+            self.w_msg.value = ERROR_MSG
+            self.params["comp_checked"] = False
+            return
+        self.w_elem["Fe"].value = 100 - editable
+        self.w_msg.value = ""
+        self.params["comp_checked"] = True
+        self.params["comp"] = np.array([self.w_elem[e].value for e in ELEMENTS]) / 100.0
+
+    def _on_include(self, change):
+        enabled = change["new"]
+        self.params["include"] = enabled
+        for w in (self.w_radius, self.w_rmax, self.w_bfield,
+                  self.w_local_rate, self.w_redshift, self.w_comp_type):
+            w.disabled = not enabled
+        free = self.w_comp_type.value == "Free"
+        for e in ELEMENTS:
+            if e != "Fe":
+                self.w_elem[e].disabled = (not enabled) or (not free)
+
+    # ---- preset application (no observer side effects on comp) ---------- #
+
+    def apply_preset(self, comp_type, local_rate, radius_index, r_max_index):
+        self._updating = True
+        self.w_radius.value = RADIUS[radius_index]
+        self.w_rmax.value = RIGIDITY_MAX[r_max_index]
+        self.w_bfield.value = B_FIELD[0]
+        self.w_local_rate.value = local_rate
+        self.w_redshift.value = 0.020
+        self.w_comp_type.value = comp_type
+        for e, frac in zip(ELEMENTS, COMPOSITIONS[comp_type]):
+            self.w_elem[e].value = frac * 100
+        self.w_include.value = True
+        self._updating = False
+        self.params.update({
+            "local_rate": local_rate,
+            "z": 0.020,
+            "radius_index": radius_index,
+            "r_max_index": r_max_index,
+            "b_field_index": 0,
+            "comp": COMPOSITIONS[comp_type].copy(),
+            "comp_checked": True,
+            "include": True,
+        })
+
+
+# --------------------------------------------------------------------------- #
+# The full application: shared widgets, physics and plotting.                 #
+# --------------------------------------------------------------------------- #
+
 class TDEsUI:
-    from ipywidgets import GridspecLayout, Layout, Box
-    import ipywidgets as widgets
-    import numpy as np
-    import io
-    import matplotlib.pyplot as plt
-    from astropy.visualization import quantity_support
-    import pickle
-    
-    import io
     def __init__(self):
-        import numpy as np
-        import pickle
-        import matplotlib.pyplot as plt
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout, Layout, Box
+        with open("spectra_data.pkl", "rb") as fh:
+            self.spectra_data = pickle.load(fh)
 
-        self.GridspecLayout = GridspecLayout
-        Box = Box
-        self.np = np
-        
-        self.pickle = pickle
-        self.plt = plt
-        self.widgets = widgets
-        with open("spectra_data.pkl", "rb") as file:
-            self.spectra_data = self.pickle.load(file)
-        self.radius = self.np.array([5.00e16,  7.34e16,  1.08e17,  1.58e17,  2.32e17, 3.41e17,  5.00e17,  7.34e17,  1.08e18, 1.58e18, 2.32e18, 3.41e18, 5.00e18])
-        self.rigidity_max = self.np.array([1.00e9,  1.39e9,  1.92e9,  2.66e9,  3.68e9,  5.10e9,  7.07e9,  9.80e9,  1.36e10,  1.88e10, 2.61e10, 3.61e10, 5.00e10])/1e9
-        self.B_field = self.np.array([0.1])
-        self.input_spec = [101, 402, 1206, 1407,1608, 2311, 2814, 5626]
-        
-        self.error_comp_massage ='<span style="color: red;">Error: Total composition exceeds 100%</span>'
-
-        self.composition_values = {
-            'MS': self.np.array([73.9, 24.7, 0.22, 0.07, 0.63, 0.23, 0.07, 0.12])/100,
-            'RSG': self.np.array([46.46, 36.74, 0.95 , 0.30, 2.72, 0.99, 0.3, 0.52])/100,
-            'WR': self.np.array([0.00633, 98.1, 0.0292 , 1.33, 0.0321, 0.2573, 0.0734, 0.136])/100,
-            'CO-WD': self.np.array([1e-5, 1e-5, 50, 1e-5, 50, 1e-5, 1e-5, 1e-5])/100,
-            'ONeMg-WD': self.np.array([1e-5, 1e-5, 1e-5, 1e-5, 12, 88, 1e-5, 1e-5])/100
+        self.air_shower_model = {"name": "EPOS-LHC", "model": None}
+        self.cr_syst = {key: {"E": 0.0, "Xmean": 0.0, "SigmaXmean": 0.0}
+                        for key in ("Auger", "TA")}
+        self.plot_data_sets = {
+            "cr": {"Auger": True, "TA": False},
+            "nu": {"HESE": True, "ICGen2": True, "IC9yr": True,
+                   "Auger2019": True, "RNO-G": True, "GRAND200K": True},
         }
-        self.air_shower_model_names = ['EPOS-LHC', 'SIBYLL2.3d', 'SIBYLL2.3c', 'QGSJET-II04']
-        self.air_shower_model = {
-            'name': 'EPOS-LHC',
-            'model': None,
-        }
+        self.E_p_min = 1  # GeV
 
-        
+        self.scenarios = {k: Scenario(k) for k in SCENARIOS}
 
-        self.dsg_parameters = {
-            "local_rate": 50,
-            "z": 0.020,
-            "radius_index": 0,
-            "r_max_index": 0,
-            "b_field_index": 0, 
-            "comp": self.np.zeros(8)+12.5/100,
-            "comp_checked": True,
-            "include": True,
-        }
+        self._apply_mpl_style()
+        self._build_ui()
 
-        self.fdr_parameters = {
-            "local_rate": 50,
-            "z": 0.020,
-            "radius_index": 0,
-            "r_max_index": 0,
-            "b_field_index": 0, 
-            "comp": self.np.zeros(8)+12.5/100,
-            "comp_checked": True,
-            "include": True,
+    # ---- styling ------------------------------------------------------- #
 
-        }
+    @staticmethod
+    def _apply_mpl_style():
+        plt.rcParams.update({
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "axes.labelsize": 16,
+            "axes.titlesize": 16,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+            "xtick.major.size": 8,
+            "xtick.minor.size": 4,
+            "ytick.major.size": 8,
+            "ytick.minor.size": 4,
+            "font.size": 14,
+            "legend.fontsize": 11,
+            "legend.frameon": True,
+            "axes.grid": False,
+        })
 
-        self.aalc_parameters = {
-            "local_rate": 50,
-            "z": 0.020,
-            "radius_index": 0,
-            "r_max_index": 0,
-            "b_field_index": 0, 
-            "comp": self.np.zeros(8)+12.5/100,
-            "comp_checked": True,
-            "include": True,
+    # ---- UI ------------------------------------------------------------ #
 
-        }
-
-
-        self.parameters_best_fit_scenario={
-            "Star Mass Abundance":{
-                "dsg":{
-                    "parameters":{
-                        "local_rate": 32.45,
-                        "z": 0.020,
-                        "radius_index": 4,
-                        "r_max_index": 4,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["ONeMg-WD"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "ONeMg-WD"
-
-                },
-                "fdr":{
-                    "parameters":{
-                        "local_rate": 5.23,
-                        "z": 0.020,
-                        "radius_index": 3,
-                        "r_max_index": 10,
-                        "b_field_index": 0, 
-                        "comp": self.composition_values["WR"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "WR"
-
-                },
-                "aalc":{
-                    "parameters":{
-                        "local_rate": 32.45,
-                        "z": 0.020,
-                        "radius_index": 4,
-                        "r_max_index": 4,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["ONeMg-WD"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "ONeMg-WD"
-
-                },
-                "syst":{
-                    "Auger":{
-                        "E": -8.3,
-                        "Xmean": -148,
-                        "SigmaXmean": 0.0
-                    },
-                    "TA":{
-                        "E": 0.0,
-                        "Xmean": 0.0,
-                        "SigmaXmean": 0.0
-                    }
-                },
-                "airshower": "EPOS-LHC",
-                "cr":{
-                        "Auger": True,
-                        "TA": False,
-                }
-            },
-            "MS star":{
-                "dsg":{
-                    "parameters":{
-                        "local_rate": 220.24,
-                        "z": 0.020,
-                        "radius_index": 10,
-                        "r_max_index": 3,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["MS"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "MS"
-
-                },
-                "fdr":{
-                    "parameters":{
-                        "local_rate": 220.24,
-                        "z": 0.020,
-                        "radius_index": 12,
-                        "r_max_index": 8,
-                        "b_field_index": 0, 
-                        "comp": self.composition_values["MS"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "MS"
-
-                },
-                "aalc":{
-                    "parameters":{
-                        "local_rate": 220.24,
-                        "z": 0.020,
-                        "radius_index": 10,
-                        "r_max_index": 3,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["MS"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "MS"
-
-                },
-                "syst":{
-                    "Auger":{
-                        "E": -42.0,
-                        "Xmean": 300,
-                        "SigmaXmean": 0.0
-                    },
-                    "TA":{
-                        "E": 0.0,
-                        "Xmean": 0.0,
-                        "SigmaXmean": 0.0
-                    }
-                },
-                "airshower": "EPOS-LHC",
-                "cr":{
-                        "Auger": True,
-                        "TA": False,
-                }
-            },
-            "RSG star":{
-                "dsg":{
-                    "parameters":{
-                        "local_rate": 238.55,
-                        "z": 0.020,
-                        "radius_index": 9,
-                        "r_max_index": 1,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["RSG"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "RSG"
-
-                },
-                "fdr":{
-                    "parameters":{
-                        "local_rate": 238.55,
-                        "z": 0.020,
-                        "radius_index": 12,
-                        "r_max_index": 8,
-                        "b_field_index": 0, 
-                        "comp": self.composition_values["RSG"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "RSG"
-
-                },
-                "aalc":{
-                    "parameters":{
-                        "local_rate": 238.55,
-                        "z": 0.020,
-                        "radius_index": 9,
-                        "r_max_index": 1,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["RSG"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "RSG"
-
-                },
-                "syst":{
-                    "Auger":{
-                        "E": -42.0,
-                        "Xmean": 300,
-                        "SigmaXmean": 0.0
-                    },
-                    "TA":{
-                        "E": 0.0,
-                        "Xmean": 0.0,
-                        "SigmaXmean": 0.0
-                    }
-                },
-                "airshower": "EPOS-LHC",
-                "cr":{
-                        "Auger": True,
-                        "TA": False,
-                },
-            },
-            "WR star":{
-                "dsg":{
-                    "parameters":{
-                        "local_rate": 130.92,
-                        "z": 0.020,
-                        "radius_index": 4,
-                        "r_max_index": 2,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["WR"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "WR"
-
-                },
-                "fdr":{
-                    "parameters":{
-                        "local_rate": 130.92,
-                        "z": 0.020,
-                        "radius_index": 12,
-                        "r_max_index": 9,
-                        "b_field_index": 0, 
-                        "comp": self.composition_values["WR"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "WR"
-
-                },
-                "aalc":{
-                    "parameters":{
-                        "local_rate": 130.92,
-                        "z": 0.020,
-                        "radius_index": 4,
-                        "r_max_index": 2,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["WR"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "WR"
-
-                },
-                "syst":{
-                    "Auger":{
-                        "E": 19.4,
-                        "Xmean": 181,
-                        "SigmaXmean": 0.0
-                    },
-                    "TA":{
-                        "E": 0.0,
-                        "Xmean": 0.0,
-                        "SigmaXmean": 0.0
-                    }
-                },
-                "airshower": "EPOS-LHC",
-                "cr":{
-                        "Auger": True,
-                        "TA": False,
-                }
-            },
-            "CO-WD":{
-                "dsg":{
-                    "parameters":{
-                        "local_rate": 63.76,
-                        "z": 0.020,
-                        "radius_index": 9,
-                        "r_max_index": 5,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["CO-WD"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "CO-WD"
-
-                },
-                "fdr":{
-                    "parameters":{
-                        "local_rate": 63.76,
-                        "z": 0.020,
-                        "radius_index": 12,
-                        "r_max_index": 9,
-                        "b_field_index": 0, 
-                        "comp": self.composition_values["CO-WD"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "CO-WD"
-
-                },
-                "aalc":{
-                    "parameters":{
-                        "local_rate": 63.76,
-                        "z": 0.020,
-                        "radius_index": 8,
-                        "r_max_index": 2,
-                        "b_field_index": 0, 
-                        "comp":  self.composition_values["CO-WD"],
-                        "comp_checked": True,
-                        "include": True,  
-                    },
-
-                    "comp_type": "CO-WD"
-
-                },
-                "syst":{
-                    "Auger":{
-                        "E": -42.0,
-                        "Xmean": 300,
-                        "SigmaXmean": 0.0
-                    },
-                    "TA":{
-                        "E": 0.0,
-                        "Xmean": 0.0,
-                        "SigmaXmean": 0.0
-                    }
-                },
-                "airshower": "EPOS-LHC",
-                "cr":{
-                        "Auger": True,
-                        "TA": False,
-                }
-            }
-        }
-        list(self.parameters_best_fit_scenario.keys())
-        self.TDES_STYLES ={
-            'dsg' : {
-                'line_style' : ':',
-                'marker': "^",
-                'color' :(43/255,59/255,74/255),
-            },
-            'fdr' : {
-                'line_style' : '--',
-                'marker': "D",
-                'color' : (147/255,4/255,22/255),
-            },
-            'aalc' : {
-                'line_style' : '-.',
-                'marker': "s",
-                'color' : (234/255,182/255,77/255),
-            }
-            
-        }
-        self.plt.rcParams['xtick.major.size'] = 10
-        self.plt.rcParams['xtick.minor.size'] = 4
-        self.plt.rcParams['ytick.major.size'] = 10
-        self.plt.rcParams['ytick.minor.size'] = 4
-        self.plt.rcParams['xtick.labelsize'] = 18
-        self.plt.rcParams['ytick.labelsize'] = 18
-        self.plt.rcParams['axes.labelsize'] = 18
-        self.plt.rcParams.update({'font.size': 16})
-
-        self.plot_data_sets={
-            "cr":{
-                "Auger": True,
-                "TA": False,
-            },
-            "nu":{
-                "HESE": True,
-                "ICGen2": True,
-                "IC9yr": True,
-                "Auger2019": True,
-                "RNO-G": True,
-                "GRAND200K": True
-            }
-        }
-
-
-
-        self.cr_syst={
-            "Auger":{
-                "E": 0.0,
-                "Xmean": 0.0,
-                "SigmaXmean": 0.0
-            },
-            "TA":{
-                "E": 0.0,
-                "Xmean": 0.0,
-                "SigmaXmean": 0.0
-            }
-        }
-
-
-        self.filepath ='./collected_results.hdf5'
-
-        self.input_spec = [ 101, 402, 1206, 1407, 1608, 2311, 2814, 5626]
-        self.paramlist_fit = (('radius_dsg', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
-                                5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_dsg', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
-                                7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_dsg', self.np.array([0.1])), ('radius_fdr', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
-                                5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_fdr', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
-                                7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_fdr', self.np.array([0.1])), ('radius_aalc', self.np.array([5.00e+16, 7.34e+16, 1.08e+17, 1.58e+17, 2.32e+17, 3.41e+17,
-                                5.00e+17, 7.34e+17, 1.08e+18, 1.58e+18, 2.32e+18, 3.41e+18,
-                                5.00e+18])), ('rigidity_aalc', self.np.array([1.00e+09, 1.39e+09, 1.92e+09, 2.66e+09, 3.68e+09, 5.10e+09,
-                                7.07e+09, 9.80e+09, 1.36e+10, 1.88e+10, 2.61e+10, 3.61e+10,
-                                5.00e+10])), ('B_value_aalc', self.np.array([0.1])))
-        self.data_folder = "/afs/ifh.de/user/p/pavlop/homepavlo/TDE/data/TDEData_3TDENR2"
-        self.data_set = "3TDENR2"
-        self.escape_type = ('direct', 1)
-        self.fit = "epos_dif_all_free"
-        self.chi2_list = True
-
-        self.A = self.np.array([1, 4, 12, 14, 16, 23, 28, 56])
-        self.Z = self.np.array([1, 2,  6,  7,  8, 11, 14, 26])
-        self.E_p_min = 1
-
-        # self.setup_scan()
-        self.setup_ui()
-
-    
-
-    # def setup_scan(self):
-        
-        # def get_index(index):
-        #     index_dsg = {'radius': index[0],'rigidity_max': index[1], 'B_value': index[2]} 
-        #     index_fdr = {'radius': index[3],'rigidity_max': index[4], 'B_value': index[5]} 
-        #     index_aalc = {'radius': index[6],'rigidity_max': index[7], 'B_value': index[8]}
-            
-        #     return index_dsg, index_fdr, index_aalc
-        # from prince_analysis_tools.plotter import ScanPlotterTDE
-    def create_best_fit(self):
-        import ipywidgets as widgets
-        widget = widgets.ToggleButtons(
-        options=['I want to play'] + list(self.parameters_best_fit_scenario.keys()),
-        description='wchich scanraio you want to plot?:',
-        disabled=False,
-        button_style='', # 'success', 'info', 'warning', 'danger' or ''
-        # tooltips=['Description of slow', 'Description of regular', 'Description of fast'],
-    #     icons=['check'] * 3
-        )
-        return widget
-
-    def create_grid_param(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout
-        grid_param = GridspecLayout(4, 2)
-        grid_param[0, 0:1] = widgets.HTML(value="<h2>Parameters  </h2>")
-        grid_param[1, 0] = widgets.Dropdown(options=self.radius.tolist(), description="Radius [cm]", layout={'width': 'max-content'})
-        grid_param[2, 0] = widgets.Dropdown(options=self.rigidity_max.tolist(), description="R_max [1e9 GeV]", layout={'width': 'max-content'})
-        grid_param[3, 0] = widgets.Dropdown(options=self.B_field.tolist(), description="B [G]", layout={'width': 'max-content'})
-        grid_param[1, 1] = widgets.BoundedFloatText(value=50, min=0, max=1e6, step=0.1, description='local rate:', disabled=False, layout={'width': 'max-content'})
-        grid_param[2, 1] = widgets.BoundedFloatText(value=0.020, min=0, max=5.0, step=0.001, description='radshift:', disabled=False, layout={'width': 'max-content'})
-        return grid_param
-
-    def create_grid_comp(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout
-        grid_comp = GridspecLayout(5, 3)
-        grid_comp[0, 0] = widgets.HTML(value="<h2> Composition  </h2>")
-        grid_comp[0, 1] = widgets.HTML()
-        grid_comp[1:4, 0] = widgets.RadioButtons(options=['MS', 'RSG', 'WR', 'CO-WD', 'ONeMg-WD', 'Free'], value='Free', description='Composition:', disabled=False)
-        grid_comp[1, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='H %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='He %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='C %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 1] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='N %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[1, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='O %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[2, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Na %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[3, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Si %:', disabled=False, layout={'width': 'max-content'})
-        grid_comp[4, 2] = widgets.BoundedFloatText(value=12.5, min=1e-5, max=100, step=0.1, description='Fe %:', disabled=True, layout={'width': 'max-content'})
-        return grid_comp
-
-    def create_grid_param_cr_data(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout
-        grid_param_cr_data = GridspecLayout(3, 1)
-        grid_param_cr_data[0, 0] = widgets.HTML(value="UHECR data")
-        
-        descriptions = ['Auger 2019', 'TA 2019']
-        keys = ['Auger', 'TA']
-        initial_values = [True, False]  # Initial values for each checkbox
-
-        for i, (desc, key, val) in enumerate(zip(descriptions, keys, initial_values), start=1):
-            checkbox = widgets.Checkbox(value=val, description=desc, disabled=False, indent=False)
-            grid_param_cr_data[i, 0] = checkbox
-            # Attach event handler
-            checkbox.observe(lambda change, name=key: self.handle_cr_data_change(change, name), names='value')
-
-        return grid_param_cr_data
-
-    def create_grid_param_nu_sets(self):
-        import ipywidgets as widgets
-        grid_param_nu_sets = self.GridspecLayout(7, 1)
-        grid_param_nu_sets[0, 0] = widgets.HTML(value="Neutrino")
-        descriptions = ['IceCube HESE', 'IceCube 9 years', 'IceCube-Gen2', 'RNO-G', 'GRAND200k', 'Auger 2019']
-        keys = ['HESE', 'IC9yr', 'ICGen2', 'RNO-G', 'GRAND200K', 'Auger2019']
-
-        for i, desc in enumerate(descriptions, start=1):
-            checkbox = widgets.Checkbox(value=True, description=desc, disabled=False, indent=False)
-            grid_param_nu_sets[i, 0] = checkbox
-            # Attach event handler
-            checkbox.observe(lambda change, name=keys[i-1]: self.handle_nu_sens_change(change, name), names='value')
-
-        return grid_param_nu_sets
-
-    def create_grid_param_air_shower_model(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout
-        # grid_param_plot = GridspecLayout(3, 1)
-        # grid_param_plot[1, 0] = self.create_grid_param_cr_data()
-        # grid_param_plot[3, 0] = self.create_grid_param_nu_sets()
-        return widgets.RadioButtons(options=self.air_shower_model_names, description='Air Shower model:', disabled=False)
-
-    def create_grid_param_syst_cr(self):
-        from ipywidgets import GridspecLayout
-        import ipywidgets as widgets
-        grid_param_plot = GridspecLayout(4, 2)
-        grid_param_plot[0, 0:2] = widgets.HTML(value="Systematics")  # Adjusted for spanning two columns
-        
-        # Define BoundedFloatText widgets and attach handlers
-        self.descriptions_syst = [
-            'E_PAO [%]', '<X>_PAO[%]', 'σ<X> PAO[%]',
-            'E_TA [%]', '<X>_TA[%]', 'σ<X> TA[%]'
-        ]
-        for i, desc in enumerate(self.descriptions_syst):
-            row, col = divmod(i, 3)  # Calculate row, column for placement
-            # print(row, col)
-            widget = widgets.BoundedFloatText(
-                value=0.0,
-                min=-3*14 if 'E' in desc else -300,
-                max=3*14 if 'E' in desc else 300,
-                step=0.1 if 'E' in desc else 1,
-                description=desc,
-                disabled=False,
-                layout={'width': 'max-content'}
-            )
-            grid_param_plot[col + 1, row] = widget
-            widget.observe(lambda change, name=desc: self.handle_systematic_change(change, name), names='value')
-        
-        return grid_param_plot
-
-    def handle_systematic_change(self, change, name):
-        # Update the corresponding value in the dictionary
-        if name == self.descriptions_syst[0]:
-            self.cr_syst["Auger"]["E"] = change['new']
-        elif name == self.descriptions_syst[1]:
-            self.cr_syst["Auger"]["Xmean"] = change['new']
-        elif name == self.descriptions_syst[2]:
-            self.cr_syst["Auger"]["SigmaXmean"] = change['new']
-        elif name == self.descriptions_syst[3]:
-            self.cr_syst["TA"]["E"] = change['new']
-        elif name == self.descriptions_syst[4]:
-            self.cr_syst["TA"]["Xmean"] = change['new']
-        elif name == self.descriptions_syst[5]:
-            self.cr_syst["TA"]["SigmaXmean"] = change['new']
-        # print(f"Updated {name} to {change['new']}")  # Optional: for debugging
-
-    def create_grid_param_buttons(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout
-        grid_param_buttons = GridspecLayout(1, 4)
-
-        grid_param_buttons[0, 0] = widgets.Button(
-            description='Create Plot',
-            disabled=False,
-            button_style='',  # 'success', 'info', 'warning', 'danger' or ''
-            tooltip='Create a new plot',
-            icon='chart-line'  # FontAwesome icon names without the `fa-` prefix
+    def _build_ui(self):
+        header = HTML(
+            '<div class="tde-header">'
+            '<h1>UHECR &amp; neutrino sources: tidal disruption events</h1>'
+            '<p>Weight precomputed PriNCe propagation states for AT2019dsg, '
+            'AT2019fdr and AT2019aalc by their source composition and local rate, '
+            'and compare the cosmic-ray spectrum, &lt;X<sub>max</sub>&gt;, '
+            '&sigma;(X<sub>max</sub>) and neutrino flux against Auger / TA / '
+            'IceCube data.</p></div>'
         )
 
-        grid_param_buttons[0, 1] = widgets.Button(
-            description='Fit Data',
-            disabled=False,
-            button_style='',
-            tooltip='Fit data to model',
-            icon='chart-bar'
+        self.preset_selector = widgets.ToggleButtons(
+            options=["I want to play"] + list(PRESETS.keys()),
+            description="Preset:",
         )
+        preset_card = VBox([
+            HTML('<span class="tde-section-title">Predefined best-fit options</span>'),
+            self.preset_selector,
+        ])
+        preset_card.add_class("tde-card")
 
-        grid_param_buttons[0, 2] = widgets.Button(
-            description='Save Plot',
-            disabled=False,
-            button_style='',
-            tooltip='Save the current plot',
-            icon='save'
-        )
+        cards = [s.card() for s in self.scenarios.values()]
 
-        grid_param_buttons[0, 3] = widgets.Button(
-            description='Save Data',
-            disabled=False,
-            button_style='',
-            tooltip='Save the current data',
-            icon='database'
-        )
+        self.cr_checks = self._make_checks(
+            [("Auger 2019", "Auger", True), ("TA 2019", "TA", False)],
+            self._on_cr_data)
+        self.nu_checks = self._make_checks(
+            [("IceCube HESE", "HESE", True), ("IceCube 9 yr", "IC9yr", True),
+             ("IceCube-Gen2", "ICGen2", True), ("RNO-G", "RNO-G", True),
+             ("GRAND200k", "GRAND200K", True), ("Auger 2019", "Auger2019", True)],
+            self._on_nu_data)
+        self.airshower_radio = widgets.RadioButtons(
+            options=AIR_SHOWER_MODELS, description="Air shower:")
+        self.airshower_radio.observe(self._on_airshower, names="value")
+        self.syst_grid = self._make_syst_grid()
 
-        return grid_param_buttons
+        data_card = VBox([
+            HTML('<span class="tde-section-title">Data sets, systematics &amp; '
+                 'air-shower model</span>'),
+            HBox([
+                VBox([HTML("<b>UHECR data</b>")] + self.cr_checks),
+                VBox([HTML("<b>Neutrino data</b>")] + self.nu_checks),
+                VBox([HTML("<b>Air-shower model</b>"), self.airshower_radio]),
+                VBox([HTML("<b>Systematics [%]</b>"), self.syst_grid]),
+            ]),
+        ])
+        data_card.add_class("tde-card")
 
-
-
-    def setup_ui(self):
-        import ipywidgets as widgets
-        from ipywidgets import GridspecLayout, Layout, Box
-        self.box_layout_column = Layout(display='flex',  flex_flow='column', align_items='stretch', border='solid', width='100%')
-        self.box_layout_column_no_borber = Layout(display='flex', flex_flow='column', align_items='stretch', border='none', width='100%')
-        self.box_layout_row = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='solid', width='100%')
-        self.box_layout_row_no_border = Layout(display='flex', justify_content="space-between", flex_flow='row', align_items='stretch', border='none', width='100%')
-
-        
-        self.plotting_scanario = self.create_best_fit()
-        self.plotting_scanario_title = Box(children=[widgets.HTML(value="<h1>Predefined options</h1>"), self.plotting_scanario], layout=self.box_layout_column_no_borber)
-
-        
-        self.include_dsg = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
-        self.grid_param_dsg = self.create_grid_param()
-        self.grid_comp_dsg = self.create_grid_comp()
-        
-        self.include_fdr = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
-        self.grid_param_fdr = self.create_grid_param()
-        self.grid_comp_fdr = self.create_grid_comp()
-
-        self.include_aalc = widgets.Checkbox(value=True, description='include to the plot', disabled=False)
-        self.grid_param_aalc = self.create_grid_param()
-        self.grid_comp_aalc = self.create_grid_comp()
-
-        self.plot_data_cr = self.create_grid_param_cr_data()
-        self.plot_syst_cr = self.create_grid_param_syst_cr()
-        self.plot_data_nu = self.create_grid_param_nu_sets()
-        self.plot_air_shower_model = self.create_grid_param_air_shower_model()
-        self.buttons = self.create_grid_param_buttons()
+        self.plot_button = widgets.Button(description="Create plot", icon="chart-line",
+                                          button_style="primary")
+        self.plot_button.on_click(lambda _b: self.plot_data_simple())
+        buttons = HBox([self.plot_button])
 
         self.plot_output = widgets.Output()
 
-        self.box_dsg_title = Box(children=[widgets.HTML(value="<h1>AT2019dsg</h1>"), self.include_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg_parameters = Box(children=[self.grid_param_dsg, self.grid_comp_dsg], layout=self.box_layout_row_no_border)
-        self.box_dsg = Box(children=[self.box_dsg_title,self.box_dsg_parameters], layout=self.box_layout_column)
+        self.preset_selector.observe(self._on_preset, names="value")
 
-        self.box_fdr_title = Box(children=[widgets.HTML(value="<h1>AT2019fdr</h1>"), self.include_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr_parameters = Box(children=[self.grid_param_fdr, self.grid_comp_fdr], layout=self.box_layout_row_no_border)
-        self.box_fdr = Box(children=[self.box_fdr_title,self.box_fdr_parameters], layout=self.box_layout_column)
+        self.box_ui = VBox([HTML(_CSS), header, preset_card, *cards,
+                            data_card, buttons, self.plot_output])
+        self.box_ui.add_class("tde-app")
 
+    def _make_checks(self, items, handler):
+        boxes = []
+        for desc, key, val in items:
+            cb = widgets.Checkbox(value=val, description=desc, indent=False)
+            cb.observe(lambda ch, name=key: handler(name, ch["new"]), names="value")
+            boxes.append(cb)
+        return boxes
 
+    def _make_syst_grid(self):
+        # Auger column then TA column; rows = energy / <Xmax> / sigma(Xmax).
+        self.syst_widgets = {}
+        rows = [("E", "E"), ("Xmean", "<X>"), ("SigmaXmean", "σ<X>")]
+        grid = GridspecLayout(3, 2)
+        for col, det in enumerate(("Auger", "TA")):
+            for row, (field, short) in enumerate(rows):
+                is_energy = field == "E"
+                w = widgets.BoundedFloatText(
+                    value=0.0,
+                    min=-42 if is_energy else -300, max=42 if is_energy else 300,
+                    step=0.1 if is_energy else 1,
+                    description=f"{short} {det}", layout={"width": "max-content"})
+                w.observe(lambda ch, d=det, f=field: self._on_syst(d, f, ch["new"]),
+                          names="value")
+                self.syst_widgets[(det, field)] = w
+                grid[row, col] = w
+        return grid
 
+    # ---- shared handlers ----------------------------------------------- #
 
-        self.box_aalc_title = Box(children=[widgets.HTML(value="<h1>AT2019aalc</h1>"), self.include_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc_parameters = Box(children=[self.grid_param_aalc, self.grid_comp_aalc], layout=self.box_layout_row_no_border)
-        self.box_aalc = Box(children=[self.box_aalc_title,self.box_aalc_parameters], layout=self.box_layout_column)
+    def _on_cr_data(self, name, value):
+        self.plot_data_sets["cr"][name] = value
 
+    def _on_nu_data(self, name, value):
+        self.plot_data_sets["nu"][name] = value
 
-        self.box_TDEs = Box(children=[self.box_dsg, self.box_fdr,self.box_aalc], layout=self.box_layout_column)  # Add all boxes here
+    def _on_airshower(self, change):
+        self.air_shower_model["name"] = change["new"]
 
-        self.box_plot_param = Box(children=[self.plot_data_cr, self.plot_syst_cr, self.plot_air_shower_model, self.plot_data_nu], layout=self.box_layout_row_no_border)
+    def _on_syst(self, detector, field, value):
+        self.cr_syst[detector][field] = value
 
-        self.box_ui= Box(children=[self.plotting_scanario_title,self.box_TDEs, self.box_plot_param, self.buttons, self.plot_output], layout=self.box_layout_column) 
-        self.plot_data_simple
-        self.attach_event_handlers()
+    def _on_preset(self, change):
+        name = change["new"]
+        if name == "I want to play":
+            return
+        preset = PRESETS[name]
+        for key in SCENARIOS:
+            self.scenarios[key].apply_preset(*preset[key])
 
-    def handle_cr_data_change(self, change, name):
-        # Update the 'cr' part of the plot_data_sets dictionary
-        self.plot_data_sets["cr"][name] = change['new']
-    
-    def handle_nu_sens_change(self, change, name):
-        self.plot_data_sets["nu"][name] = change['new']
-        # print(f"{name} set to {change['new']}")  # Debug print to verify changes
-    
-    def update_fields_based_on_scenario(self, change):
-        if change['new'] == 'I want to play':
-            return  # Ignore or reset fields if needed
-        
-        scenario_name = change['new']
-        scenario_details = self.parameters_best_fit_scenario[scenario_name]
-
-        #update dsg 
-
-        self.grid_param_dsg[1,0].value = self.radius[scenario_details["dsg"]["parameters"]["radius_index"]]
-        self.grid_param_dsg[2,0].value = self.rigidity_max[scenario_details["dsg"]["parameters"]["r_max_index"]]
-        self.grid_param_dsg[3,0].value = self.B_field[scenario_details["dsg"]["parameters"]["b_field_index"]]
-        self.grid_param_dsg[1,1].value = scenario_details["dsg"]["parameters"]["local_rate"]
-        self.grid_param_dsg[2,1].value = scenario_details["dsg"]["parameters"]["z"]
-        
-        self.grid_comp_dsg[1:4, 0].value = scenario_details["dsg"]["comp_type"]
-        self.grid_comp_dsg[1, 1].value = scenario_details["dsg"]["parameters"]["comp"][0]*100
-        self.grid_comp_dsg[2, 1].value = scenario_details["dsg"]["parameters"]["comp"][1]*100 
-        self.grid_comp_dsg[3, 1].value = scenario_details["dsg"]["parameters"]["comp"][2]*100 
-        self.grid_comp_dsg[4, 1].value = scenario_details["dsg"]["parameters"]["comp"][3]*100
-        self.grid_comp_dsg[1, 2].value = scenario_details["dsg"]["parameters"]["comp"][4]*100 
-        self.grid_comp_dsg[2, 2].value = scenario_details["dsg"]["parameters"]["comp"][5]*100 
-        self.grid_comp_dsg[3, 2].value = scenario_details["dsg"]["parameters"]["comp"][6]*100
-
-        self.include_dsg.value =   scenario_details["dsg"]["parameters"]["include"]
-        self.dsg_parameters = scenario_details["dsg"]["parameters"] 
-
-
-        #update fdr 
-
-        self.grid_param_fdr[1,0].value = self.radius[scenario_details["fdr"]["parameters"]["radius_index"]]
-        self.grid_param_fdr[2,0].value = self.rigidity_max[scenario_details["fdr"]["parameters"]["r_max_index"]]
-        self.grid_param_fdr[3,0].value = self.B_field[scenario_details["fdr"]["parameters"]["b_field_index"]]
-        self.grid_param_fdr[1,1].value = scenario_details["fdr"]["parameters"]["local_rate"]
-        self.grid_param_fdr[2,1].value = scenario_details["fdr"]["parameters"]["z"]
-
-        self.grid_comp_fdr[1:4, 0].value = scenario_details["fdr"]["comp_type"]
-        self.grid_comp_fdr[1, 1].value = scenario_details["fdr"]["parameters"]["comp"][0]*100
-        self.grid_comp_fdr[2, 1].value = scenario_details["fdr"]["parameters"]["comp"][1]*100 
-        self.grid_comp_fdr[3, 1].value = scenario_details["fdr"]["parameters"]["comp"][2]*100 
-        self.grid_comp_fdr[4, 1].value = scenario_details["fdr"]["parameters"]["comp"][3]*100
-        self.grid_comp_fdr[1, 2].value = scenario_details["fdr"]["parameters"]["comp"][4]*100 
-        self.grid_comp_fdr[2, 2].value = scenario_details["fdr"]["parameters"]["comp"][5]*100 
-        self.grid_comp_fdr[3, 2].value = scenario_details["fdr"]["parameters"]["comp"][6]*100
-        self.include_fdr.value =   scenario_details["fdr"]["parameters"]["include"]
-        self.fdr_parameters = scenario_details["fdr"]["parameters"] 
-        
-        #update aalc 
-
-        self.grid_param_aalc[1,0].value = self.radius[scenario_details["aalc"]["parameters"]["radius_index"]]
-        self.grid_param_aalc[2,0].value = self.rigidity_max[scenario_details["aalc"]["parameters"]["r_max_index"]]
-        self.grid_param_aalc[3,0].value = self.B_field[scenario_details["aalc"]["parameters"]["b_field_index"]]
-        self.grid_param_aalc[1,1].value = scenario_details["aalc"]["parameters"]["local_rate"]
-        self.grid_param_aalc[2,1].value = scenario_details["aalc"]["parameters"]["z"]
-
-        self.grid_comp_aalc[1:4, 0].value = scenario_details["aalc"]["comp_type"]
-        self.grid_comp_aalc[1, 1].value = scenario_details["aalc"]["parameters"]["comp"][0]*100
-        self.grid_comp_aalc[2, 1].value = scenario_details["aalc"]["parameters"]["comp"][1]*100 
-        self.grid_comp_aalc[3, 1].value = scenario_details["aalc"]["parameters"]["comp"][2]*100 
-        self.grid_comp_aalc[4, 1].value = scenario_details["aalc"]["parameters"]["comp"][3]*100
-        self.grid_comp_aalc[1, 2].value = scenario_details["aalc"]["parameters"]["comp"][4]*100 
-        self.grid_comp_aalc[2, 2].value = scenario_details["aalc"]["parameters"]["comp"][5]*100 
-        self.grid_comp_aalc[3, 2].value = scenario_details["aalc"]["parameters"]["comp"][6]*100
-        self.include_aalc.value =   scenario_details["aalc"]["parameters"]["include"]
-        self.aalc_parameters = scenario_details["aalc"]["parameters"] 
-
-        # "parameters""radius_index""r_max_index""b_field_index""comp_checked""include"
-
-        #update systematics
-
-        self.plot_syst_cr[1,0].value = scenario_details["syst"]["Auger"]["E"]
-        self.plot_syst_cr[2,0].value = scenario_details["syst"]["Auger"]["Xmean"]
-        self.plot_syst_cr[3,0].value = scenario_details["syst"]["Auger"]["SigmaXmean"]
-
-        self.plot_syst_cr[1,1].value = scenario_details["syst"]["TA"]["E"]
-        self.plot_syst_cr[2,1].value = scenario_details["syst"]["TA"]["Xmean"]
-        self.plot_syst_cr[3,1].value = scenario_details["syst"]["TA"]["SigmaXmean"]
-
+        e, xmean, sigma = preset["syst"]
+        self.syst_widgets[("Auger", "E")].value = e
+        self.syst_widgets[("Auger", "Xmean")].value = xmean
+        self.syst_widgets[("Auger", "SigmaXmean")].value = sigma
+        for field in ("E", "Xmean", "SigmaXmean"):
+            self.syst_widgets[("TA", field)].value = 0.0
         self.plot_data_simple()
 
+    # ---- physics ------------------------------------------------------- #
 
-    def handle_type_comp_dsg_change(self, change):
-        new_value = change['new']
-        disable_value = False if new_value == 'Free' else True
+    def get_results_from_states(self, plot_index):
+        from prince_cr.solvers import UHECRPropagationResult
 
-        if new_value in self.composition_values:
-            self.dsg_parameters["comp"] = self.composition_values[new_value]
-            self.dsg_parameters["comp_checked"] = True
-            self.grid_comp_dsg[0, 1].value = ""
-        else:  # 'Free' option
-            self.handle_comp_dsg_change(None)
+        egrid = np.load("data_TDE/egrid.npy")
+        known_spec = np.load("data_TDE/known_spec.npy")
+        n = len(INPUT_SPEC)
 
+        results = {}
+        for i, key in enumerate(SCENARIOS):
+            label = f"{plot_index[3 * i]}_{plot_index[3 * i + 1]}_{plot_index[3 * i + 2]}_"
+            states = [np.load(f"data_TDE/state_{key}_{label}{m}.npy") for m in range(n)]
+            results[key] = [
+                UHECRPropagationResult.from_dict(
+                    {"egrid": egrid, "known_spec": known_spec, "state": s})
+                for s in states
+            ]
+        return results
 
-        self.grid_comp_dsg[1, 1].disabled = disable_value 
-        self.grid_comp_dsg[2, 1].disabled = disable_value 
-        self.grid_comp_dsg[3, 1].disabled = disable_value 
-        self.grid_comp_dsg[4, 1].disabled = disable_value 
-        self.grid_comp_dsg[1, 2].disabled = disable_value 
-        self.grid_comp_dsg[2, 2].disabled = disable_value 
-        self.grid_comp_dsg[3, 2].disabled = disable_value
+    def get_each_type_result(self, plot_index, frac_lr):
+        states = self.get_results_from_states(plot_index)
+        out = {}
+        for key in SCENARIOS:
+            fraction = np.asarray(frac_lr[f"frac_{key}"])
+            combined = np.sum(np.asarray(states[key], dtype=object) * fraction)
+            out[key] = combined * frac_lr[f"lr_{key}"]
+        return out[SCENARIOS[0]], out[SCENARIOS[1]], out[SCENARIOS[2]]
 
-    def handle_type_comp_fdr_change(self, change):
-        new_value = change['new']
-        disable_value = False if new_value == 'Free' else True
+    def get_comb_result(self, plot_index, frac_lr):
+        r_dsg, r_fdr, r_aalc = self.get_each_type_result(plot_index, frac_lr)
+        return r_dsg + r_fdr + r_aalc
 
-        if new_value in self.composition_values:
-            self.fdr_parameters["comp"] = self.composition_values[new_value]
-            self.fdr_parameters["comp_checked"] = True
-            self.grid_comp_fdr[0, 1].value = ""
-        else:  # 'Free' option
-            self.handle_comp_fdr_change(None)
+    def get_scan_comb_result(self):
+        import astropy.units as u
 
-        # Update the disabled property of the relevant widgets
-        self.grid_comp_fdr[1, 1].disabled = disable_value 
-        self.grid_comp_fdr[2, 1].disabled = disable_value 
-        self.grid_comp_fdr[3, 1].disabled = disable_value 
-        self.grid_comp_fdr[4, 1].disabled = disable_value 
-        self.grid_comp_fdr[1, 2].disabled = disable_value 
-        self.grid_comp_fdr[2, 2].disabled = disable_value 
-        self.grid_comp_fdr[3, 2].disabled = disable_value
+        p = {k: self.scenarios[k].params for k in SCENARIOS}
+        self.plot_index = tuple(
+            p[k][idx] for k in SCENARIOS
+            for idx in ("radius_index", "r_max_index", "b_field_index"))
 
-    def handle_type_comp_aalc_change(self, change):
-        new_value = change['new']
-        disable_value = False if new_value == 'Free' else True
+        e_p_min = (self.E_p_min * u.GeV).to_value(u.erg)
+        frac_lr = {}
+        for key in SCENARIOS:
+            r_max = RIGIDITY_MAX[p[key]["r_max_index"]]
+            e_p_max = (r_max * 1e9 * u.GeV).to_value(u.erg)
+            weight = p[key]["comp"] * np.log(Z_NUCLEI * e_p_max / (A_NUCLEI * e_p_min))
+            frac_lr[f"frac_{key}"] = weight / np.sum(weight)
+            frac_lr[f"lr_{key}"] = p[key]["local_rate"] if p[key]["include"] else 1e-5
+        self.plot_frac_lr = frac_lr
 
-        if new_value in self.composition_values:
-            self.aalc_parameters["comp"] = self.composition_values[new_value]
-            self.aalc_parameters["comp_checked"] = True
-            self.grid_comp_aalc[0, 1].value = ""
-        else:  # 'Free' option
-            self.handle_comp_aalc_change(None)
-
-
-        # Update the disabled property of the relevant widgets
-        self.grid_comp_aalc[1, 1].disabled = disable_value 
-        self.grid_comp_aalc[2, 1].disabled = disable_value 
-        self.grid_comp_aalc[3, 1].disabled = disable_value 
-        self.grid_comp_aalc[4, 1].disabled = disable_value 
-        self.grid_comp_aalc[1, 2].disabled = disable_value 
-        self.grid_comp_aalc[2, 2].disabled = disable_value 
-        self.grid_comp_aalc[3, 2].disabled = disable_value
-
-    def handle_comp_dsg_change(self, change):
-        import numpy as np
-        total_comp = sum(self.grid_comp_dsg[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_dsg[4, 2].value
-        if total_comp > 100 +1e-4:
-            # raise Exception("Error: total composition > 100")
-            self.grid_comp_dsg[0, 1].value = self.error_comp_massage 
-            self.dsg_parameters["comp_checked"] = False
-
-        else:
-            self.grid_comp_dsg[4, 2].value = 100 - total_comp 
-            self.grid_comp_dsg[0, 1].value = ""
-            self.dsg_parameters["comp_checked"] = True
-            self.fdr_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
-
-
-    def handle_comp_fdr_change(self, change):
-        import numpy as np
-        total_comp = sum(self.grid_comp_fdr[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_fdr[4, 2].value
-        if total_comp > 100 +1e-4:
-            self.grid_comp_fdr[0, 1].value = self.error_comp_massage 
-            self.fdr_parameters["comp_checked"] = False
-        else:
-            self.grid_comp_fdr[4, 2].value = 100 - total_comp
-            self.grid_comp_fdr[0, 1].value = ""
-            self.fdr_parameters["comp_checked"] = True
-            self.fdr_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
-
-    def handle_comp_aalc_change(self, change):
-        import numpy as np
-        total_comp = sum(self.grid_comp_aalc[i, j].value for i in [1, 2, 3, 4] for j in [1, 2]) - self.grid_comp_aalc[4, 2].value
-        print(total_comp)
-        if total_comp > 100 +1e-4:
-            self.grid_comp_aalc[0, 1].value = self.error_comp_massage 
-            self.aalc_parameters["comp_checked"] = False
-        else:
-            self.grid_comp_aalc[4, 2].value = 100 - total_comp
-            self.grid_comp_aalc[0, 1].value = ""
-            self.aalc_parameters["comp_checked"] = True
-            self.aalc_parameters["comp"] = self.np.array([self.grid_comp_aalc[i, j].value / 100 for i in [1, 2, 3, 4] for j in [1, 2]])
-
-    def handle_include_dsg_change(self, change):
-        enable = change['new']
-        # Set the disabled property of each widget in the DSG grids
-        for i in range(1,3):
-            for j in range(0,2):
-                self.grid_param_dsg[i, j].disabled = not enable
-        self.grid_param_dsg[3, 0].disabled = not enable
-        for i in range(1,4):
-            for j in range(1,3):
-                self.grid_comp_dsg[i, j].disabled = not enable
-        self.grid_comp_dsg[1:3, 0].disabled = not enable
-        self.grid_comp_dsg[4, 1].disabled = not enable
-        self.dsg_parameters["include"] = enable
-
-    def handle_include_fdr_change(self, change):
-        enable = change['new']
-        # Set the disabled property of each widget in the DSG grids
-        for i in range(1,3):
-            for j in range(0,2):
-                self.grid_param_fdr[i, j].disabled = not enable
-        self.grid_param_fdr[3, 0].disabled = not enable
-        for i in range(1,4):
-            for j in range(1,3):
-                self.grid_comp_fdr[i, j].disabled = not enable
-        self.grid_comp_fdr[1:3, 0].disabled = not enable
-        self.grid_comp_fdr[4, 1].disabled = not enable
-        self.fdr_parameters["include"] = enable
-
-    def handle_include_aalc_change(self, change):
-        enable = change['new']
-        # Set the disabled property of each widget in the DSG grids
-        for i in range(1,3):
-            for j in range(0,2):
-                self.grid_param_aalc[i, j].disabled = not enable
-        self.grid_param_aalc[3, 0].disabled = not enable
-        for i in range(1,4):
-            for j in range(1,3):
-                self.grid_comp_aalc[i, j].disabled = not enable
-        self.grid_comp_aalc[1:3, 0].disabled = not enable
-        self.grid_comp_aalc[4, 1].disabled = not enable
-        self.aalc_parameters["include"] = enable
-
-    def handle_local_rate_dsg_change(self, change):
-        self.dsg_parameters["local_rate"] = change['new']
-
-    def handle_local_rate_fdr_change(self, change):
-        self.fdr_parameters["local_rate"] = change['new']
-
-    def handle_local_rate_aalc_change(self, change):
-        self.aalc_parameters["local_rate"] = change['new']
-
-
-    def handle_redshift_dsg_change(self, change):
-        self.dsg_parameters["z"] = change['new']
-
-    def handle_redshift_fdr_change(self, change):
-        self.fdr_parameters["z"] = change['new']
-
-    def handle_redshift_aalc_change(self, change):
-        self.aalc_parameters["z"] = change['new']
-
-
-    def handle_radius_dsg_change(self, change):
-        import numpy as np
-        self.dsg_parameters["radius_index"] =self.np.where(change['new'] == self.radius)[0][0]
-        # self.radius_dsg_value = self.radius_values[self.dsg_parameters["radius_index"]]
-
-    def handle_r_max_dsg_change(self, change):
-        import numpy as np
-        self.dsg_parameters["r_max_index"] = self.np.where(change['new'] == self.rigidity_max)[0][0]
-
-    def handle_b_field_dsg_change(self, change):
-        import numpy as np
-        self.dsg_parameters["b_field_index"] =  self.np.where(change['new'] == self.B_field)[0][0]
-
-
-    def handle_radius_fdr_change(self, change):
-        import numpy as np
-        self.fdr_parameters["radius_index"] = self.np.where(change['new'] == self.radius)[0][0]
-        # self.radius_fdr_value = self.radius_values[self.fdr_parameters["radius_index"]]
-    
-
-    def handle_r_max_fdr_change(self, change):
-        import numpy as np
-        self.fdr_parameters["r_max_index"] = self.np.where(change['new'] == self.rigidity_max)[0][0]
-
-    def handle_b_field_fdr_change(self, change):
-        import numpy as np
-        self.fdr_parameters["b_field_index"] = self.np.where(change['new'] == self.B_field)[0][0]
-
-
-    def handle_radius_aalc_change(self, change):
-        import numpy as np
-        self.aalc_parameters["radius_index"]= self.np.where(change['new'] == self.radius)[0][0]
-        # self.radius_aalc_value = self.radius_values[self.aalc_parameters["radius_index"]]
-
-    def handle_r_max_aalc_change(self, change):
-        import numpy as np
-        self.aalc_parameters["r_max_index"] =  self.np.where(change['new'] == self.rigidity_max)[0][0]
-
-    def handle_b_field_aalc_change(self, change):
-        self.aalc_parameters["b_field_index"] = change['new']
-
-
-    def on_plot_button_clicked(self, b):
-        self.plot_data_simple()
-
-    
+        self.plot_results_comb = self.get_comb_result(self.plot_index, frac_lr)
+        self.plot_results_each = self.get_each_type_result(self.plot_index, frac_lr)
 
     def change_xmax_model(self, filename="air_shower_models.pkl"):
-        import pickle
-        # Load the XmaxSimple class from the saved file
-        with open(filename, "rb") as file:
-            XmaxSimple = self.pickle.load(file)
-    
-        # Set the appropriate XmaxSimple model based on the air_shower_model name
-        if self.air_shower_model['name'] == 'EPOS-LHC':
-            self.air_shower_model['model'] = XmaxSimple(model=XmaxSimple.EPOS)
-        elif self.air_shower_model['name'] == 'SIBYLL2.3c':
-            self.air_shower_model['model'] = XmaxSimple(model=XmaxSimple.Sibyll23)
-        elif self.air_shower_model['name'] == 'SIBYLL2.3d':
-            self.air_shower_model['model'] = XmaxSimple(model=XmaxSimple.Sibyll23d)        
-        elif self.air_shower_model['name'] == 'QGSJET-II04':
-            self.air_shower_model['model'] = XmaxSimple(model=XmaxSimple.QGSJetII)
-        else:
-            print("ERROR: The name of the air shower model is incorrect.")
+        with open(filename, "rb") as fh:
+            XmaxSimple = pickle.load(fh)
+        mapping = {
+            "EPOS-LHC": "EPOS",
+            "SIBYLL2.3c": "Sibyll23",
+            "SIBYLL2.3d": "Sibyll23d",
+            "QGSJET-II04": "QGSJetII",
+        }
+        name = self.air_shower_model["name"]
+        if name not in mapping:
+            raise ValueError(f"Unknown air-shower model: {name}")
+        self.air_shower_model["model"] = XmaxSimple(model=getattr(XmaxSimple, mapping[name]))
 
-    def plot_cosmic_rays(self, result_comb, result_each_tde = None, ls='solid', labels_on=True, label_E=2e11, label_offset=1.0,label_alpha=0.2, plot_total_flux=True ):
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from prince_cr.util import get_AZN
-        auger2019 = self.spectra_data['auger2019']
-        TA2019 = self.spectra_data['TA2019']
-        
-        LabelSpectrum = self.np.power(10,(self.np.array([2.75,2.65,2.55,2.45,2.35])-label_offset)) # self.np.power(10,(self.np.array([2.95,2.70,2.60,2.45,2.35])))
-        A = lambda x: get_AZN(x)[0]
+    # ---- helpers ------------------------------------------------------- #
 
-        ax_plots = []
+    @staticmethod
+    def find_nearest(array, value):
+        array = np.asarray(array)
+        return int((np.abs(array - value)).argmin())
 
-        params = {'alpha': 0.1, 'lw': 2.}
-        if plot_total_flux == True:
-            for group, color, label, loffset in zip([(A,1,1),(A,2,4),(A,5,14),(A,15,28),(A,29,56)],
-                                        ['red','gray','green','orange','blue'],
-                                        [r'$\mathrm{A} = 1$',r'$2 \leq \mathrm{A} \leq 4$',r'$5 \leq \mathrm{A} \leq 14$',
-                                        r'$15 \leq \mathrm{A} \leq 28$','$29 \leq \mathrm{A} \leq 56$'],
-                                        LabelSpectrum):
-                energy, spectrum = result_comb.get_solution_group(group)
-                l, = self.plt.loglog(energy, spectrum, c=color, ls=ls, **params)
-                self.plt.annotate(label, (label_E, loffset),color=color, weight = 'bold', fontsize = 13,alpha=label_alpha,
-                        horizontalalignment ='right', verticalalignment = 'top')
-                ax_plots.append(l)
-
-        if plot_total_flux == True:
-
-            energy, spectrum = result_comb.get_solution_group('CR')
-            l, = self.plt.loglog(energy, spectrum, c='saddlebrown', lw=3, ls=ls, label='Total')
-            ax_plots.append(l)
-
-        
-        if result_each_tde != None: 
-        
-            for res_tde, color, linestyle,label,position,rotation, loffset in zip(result_each_tde,
-                                                    [self.TDES_STYLES['dsg']['color'], self.TDES_STYLES['fdr']['color'], self.TDES_STYLES['aalc']['color']],
-                                                    [':','--','-.'],
-                                                    ["dsg", "fdr","aalc"],
-                                                    [(8e8,6e2),(2e9,6e2), (2e10,6e2)],
-                                                    [0,0,0],
-                                                    [0,0,0]):
-                # print("spectrum", spectrum)
-                energy, spectrum = res_tde.get_solution_group('CR') 
-                l, = self.plt.loglog(energy, spectrum, c=color, lw = 3., label =label, ls = linestyle)
-                ax_plots.append(l)
-
-                # self.plt.annotate(label, position, fontsize=13, 
-                #          color=color,rotation=rotation)
-        # deltaE/=100
-        # print("deltaE inside", deltaE)
-
-        if self.plot_data_sets["cr"]["Auger"]:
-            # Plot IceCube-Gen2 data
-            self.plt.errorbar(auger2019['energy']*(1+self.cr_syst["Auger"]["E"]/100), auger2019['spectrum']*(1+self.cr_syst["Auger"]["E"]/100)**2, # depends on data_poemma
-                        yerr=(auger2019['lower_err']*(1+self.cr_syst["Auger"]["E"]/100)**2, auger2019['upper_err']*(1+self.cr_syst["Auger"]["E"]/100)**2),
-                        fmt='o', color='black', label = 'Auger 2019')
-            
-        if self.plot_data_sets["cr"]["TA"]:
-            self.plt.errorbar(TA2019['energy']*(1+self.cr_syst["TA"]["E"]/100), TA2019['spectrum']*(1+self.cr_syst["TA"]["E"]/100)**2,
-                 yerr=(TA2019['lower_err']*(1+self.cr_syst["TA"]["E"]/100)**2, TA2019['upper_err']*(1+self.cr_syst["TA"]["E"]/100)**2),
-                 fmt='s', color='tab:brown', label = 'TA 2019', markersize=6, elinewidth=3)
-
-        self.plt.legend(ncol=3, loc='upper center')
-
-        self.plt.xlim(1e9,3e11)
-        self.plt.ylim(3e0,6e2)
-
-        self.plt.ylabel('$E^3$ J [GeV$^{2}$ cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
-        self.plt.xlabel('E [GeV]')
-        return ax_plots
-
-    def make_error_boxes(self, xdata, ydata, xerror, yerror, facecolor='r',
-                        edgecolor='None', alpha=0.5):
-
-        ax = self.plt.gca()
+    @staticmethod
+    def make_error_boxes(xdata, ydata, xerror, yerror, facecolor="r",
+                         edgecolor="None", alpha=0.5):
         from matplotlib.collections import PatchCollection
         from matplotlib.patches import Rectangle
 
-        # Create list for all the error patches
-        errorboxes = []
+        ax = plt.gca()
+        boxes = [Rectangle((x - xe[0], y - ye[0]), xe.sum(), ye.sum())
+                 for x, y, xe, ye in zip(xdata, ydata, xerror.T, yerror.T)]
+        ax.add_collection(PatchCollection(boxes, facecolor=facecolor, alpha=alpha,
+                                          edgecolor=edgecolor))
 
-        # Loop over data points; create box from errors at each point
-        for x, y, xe, ye in zip(xdata, ydata, xerror.T, yerror.T):
-            rect = Rectangle((x - xe[0], y - ye[0]), xe.sum(), ye.sum())
-            errorboxes.append(rect)
+    # ---- plots --------------------------------------------------------- #
 
-        # Create patch collection with specified colour/alpha
-        pc = PatchCollection(errorboxes, facecolor=facecolor, alpha=alpha,
-                            edgecolor=edgecolor)
+    def plot_cosmic_rays(self, result_comb, result_each_tde=None, ls="solid",
+                         label_E=2e11, label_offset=1.0, label_alpha=0.2,
+                         plot_total_flux=True):
+        from prince_cr.util import get_AZN
 
-        # Add collection to axes
-        ax.add_collection(pc)
+        auger2019 = self.spectra_data["auger2019"]
+        TA2019 = self.spectra_data["TA2019"]
+        label_spectrum = np.power(10, np.array([2.75, 2.65, 2.55, 2.45, 2.35]) - label_offset)
+        A = lambda x: get_AZN(x)[0]
+        ax_plots = []
 
+        if plot_total_flux:
+            groups = [(A, 1, 1), (A, 2, 4), (A, 5, 14), (A, 15, 28), (A, 29, 56)]
+            colors = ["red", "gray", "green", "orange", "blue"]
+            labels = [r"$\mathrm{A} = 1$", r"$2 \leq \mathrm{A} \leq 4$",
+                      r"$5 \leq \mathrm{A} \leq 14$", r"$15 \leq \mathrm{A} \leq 28$",
+                      r"$29 \leq \mathrm{A} \leq 56$"]
+            for group, color, label, loffset in zip(groups, colors, labels, label_spectrum):
+                energy, spectrum = result_comb.get_solution_group(group)
+                line, = plt.loglog(energy, spectrum, c=color, ls=ls, alpha=0.1, lw=2.0)
+                plt.annotate(label, (label_E, loffset), color=color, weight="bold",
+                             fontsize=13, alpha=label_alpha,
+                             horizontalalignment="right", verticalalignment="top")
+                ax_plots.append(line)
 
+            energy, spectrum = result_comb.get_solution_group("CR")
+            line, = plt.loglog(energy, spectrum, c="saddlebrown", lw=3, ls=ls, label="Total")
+            ax_plots.append(line)
 
-    def find_nearest(self, array, value):
-        import numpy as np
-        array = self.np.asarray(array)
-        idx = (self.np.abs(array - value)).argmin()
-        return idx
+        if result_each_tde is not None:
+            for key, res_tde in zip(SCENARIOS, result_each_tde):
+                energy, spectrum = res_tde.get_solution_group("CR")
+                line, = plt.loglog(energy, spectrum, c=TDE_STYLES[key]["color"], lw=3,
+                                   label=key, ls=TDE_STYLES[key]["ls"])
+                ax_plots.append(line)
 
-    def plot_xmax_mean(self, result, model, ls = "solid", lw=2, label=None, auger_label=True):
-        import numpy as np
-        egrid, average, variance = result.get_lnA([el for el in result.known_species if el >= 100])
+        if self.plot_data_sets["cr"]["Auger"]:
+            shift = 1 + self.cr_syst["Auger"]["E"] / 100
+            plt.errorbar(auger2019["energy"] * shift, auger2019["spectrum"] * shift ** 2,
+                         yerr=(auger2019["lower_err"] * shift ** 2,
+                               auger2019["upper_err"] * shift ** 2),
+                         fmt="o", color="black", label="Auger 2019")
+        if self.plot_data_sets["cr"]["TA"]:
+            shift = 1 + self.cr_syst["TA"]["E"] / 100
+            plt.errorbar(TA2019["energy"] * shift, TA2019["spectrum"] * shift ** 2,
+                         yerr=(TA2019["lower_err"] * shift ** 2,
+                               TA2019["upper_err"] * shift ** 2),
+                         fmt="s", color="tab:brown", label="TA 2019",
+                         markersize=6, elinewidth=3)
+
+        plt.legend(ncol=3, loc="upper center")
+        plt.xlim(1e9, 3e11)
+        plt.ylim(3e0, 6e2)
+        plt.ylabel(r"$E^3$ J [GeV$^{2}$ cm$^{-2}$ s$^{-1}$ sr$^{-1}$]")
+        plt.xlabel("E [GeV]")
+        return ax_plots
+
+    def plot_xmax_mean(self, result, model, ls="solid", lw=2, label=None, auger_label=True):
+        egrid, mean_lnA, _ = result.get_lnA([el for el in result.known_species if el >= 100])
         energy = egrid
-        mean_lnA = average
-        sigma_lnA = variance
-        ax_plots =[]
-        import matplotlib.pyplot as plt
-        Xmax2019 = self.spectra_data['Xmax2019']
-        XmaxTA2018 = self.spectra_data['XmaxTA2018']
-        # plot the reference models
-        for A, c, name in zip([1,4,14,56], ['red','gray','green','blue'],['H','He','N','Fe']):
-            Xmax = model.get_mean_Xmax(self.np.log(A), energy)
-            self.plt.semilogx(energy,Xmax, color = c)
-            idx = self.find_nearest(energy,1e11)
-            self.plt.annotate(name,(energy[idx+1],Xmax[idx]),color = c,annotation_clip=False)
+        Xmax2019 = self.spectra_data["Xmax2019"]
+        XmaxTA2018 = self.spectra_data["XmaxTA2018"]
+        ax_plots = []
+
+        for A, c, name in zip([1, 4, 14, 56], ["red", "gray", "green", "blue"],
+                              ["H", "He", "N", "Fe"]):
+            Xmax = model.get_mean_Xmax(np.log(A), energy)
+            plt.semilogx(energy, Xmax, color=c)
+            idx = self.find_nearest(energy, 1e11)
+            plt.annotate(name, (energy[idx + 1], Xmax[idx]), color=c, annotation_clip=False)
 
         Xmax = model.get_mean_Xmax(mean_lnA, energy)
-        l, = self.plt.semilogx(energy, Xmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
-        ax_plots.append(l)
+        line, = plt.semilogx(energy, Xmax, color="saddlebrown", ls=ls, lw=lw, label=label)
+        ax_plots.append(line)
 
         if self.plot_data_sets["cr"]["Auger"]:
-            xerr = self.np.array((Xmax2019['energy_Low'], Xmax2019['energy_Up']))
-            yerr = self.np.array((Xmax2019['sys_Low'], Xmax2019['sys_Up']))
-            self.make_error_boxes(Xmax2019['energy'], Xmax2019['val'], xerr, yerr, facecolor='gray')
-            
-            if self.cr_syst["Auger"]["Xmean"] > 0:
-                xcorr = self.cr_syst["Auger"]["Xmean"] * Xmax2019['sys_Up']/100
-            else:
-                xcorr = self.cr_syst["Auger"]["Xmean"] * Xmax2019['sys_Low']/100
-
-            self.plt.errorbar(Xmax2019['energy'], Xmax2019['val'] + xcorr,
-                        xerr=(Xmax2019['energy_Low'], Xmax2019['energy_Up']),
-                        yerr=(Xmax2019['stat'], Xmax2019['stat']),
-                        fmt='o',markersize=6, label='Auger 2019' * auger_label, c='black')
-
+            self._xmax_data(Xmax2019, "Auger", "Xmean", "o", "black", "gray",
+                            auger_label, "Auger 2019")
         if self.plot_data_sets["cr"]["TA"]:
+            self._xmax_data(XmaxTA2018, "TA", "Xmean", "s", "tab:brown", "tab:brown",
+                            auger_label, "TA 2018", box_alpha=0.15, alpha=0.7)
 
-            xerrTA = self.np.array((XmaxTA2018['energy_Low'], XmaxTA2018['energy_Up']))
-            yerrTA = self.np.array((XmaxTA2018['sys_Low'], XmaxTA2018['sys_Up']))
-            self.make_error_boxes(XmaxTA2018['energy'], XmaxTA2018['val'], xerrTA, yerrTA, facecolor='tab:brown',alpha=0.15)
-            
-            
-            if self.cr_syst["TA"]["Xmean"] > 0:
-                xcorrTA = self.cr_syst["TA"]["Xmean"] * XmaxTA2018['sys_Up']/100
-            else:
-                xcorrTA = self.cr_syst["TA"]["Xmean"] * XmaxTA2018['sys_Low']/100
-
-            self.plt.errorbar(XmaxTA2018['energy'], XmaxTA2018['val'] + xcorrTA,
-                        xerr=(XmaxTA2018['energy_Low'], XmaxTA2018['energy_Up']),
-                        yerr=(XmaxTA2018['stat'], XmaxTA2018['stat']),
-                        fmt='s',markersize=6,elinewidth=3, c='tab:brown',alpha=0.7, label = "TA 2018")
-
-
-        self.plt.xlim(1e9,1e11)
-        self.plt.ylim(650,900)
-        self.plt.xlabel('E  [GeV]')
-        self.plt.ylabel(r'$\langle X_{max} \rangle$ [g cm$^{-2}$]')
+        plt.xlim(1e9, 1e11)
+        plt.ylim(650, 900)
+        plt.xlabel("E  [GeV]")
+        plt.ylabel(r"$\langle X_{max} \rangle$ [g cm$^{-2}$]")
         return ax_plots
-        
-    def plot_xmax_sigma(self, result, model, deltaE = 0.,xshift=0., ls = "solid", lw=2, label=None,auger_label=True):
-        import numpy as np
-        egrid, average, variance = result.get_lnA([el for el in result.known_species if el >= 100])
+
+    def plot_xmax_sigma(self, result, model, ls="solid", lw=2, label=None, auger_label=True):
+        egrid, mean_lnA, var_lnA = result.get_lnA(
+            [el for el in result.known_species if el >= 100])
         energy = egrid
-        mean_lnA = average
-        var_lnA = variance
+        XRMS2019 = self.spectra_data["XRMS2019"]
+        XRMSTA2018 = self.spectra_data["XRMSTA2018"]
         ax_plots = []
-        import matplotlib.pyplot as plt
-        
-        for A, c, name in zip([1,4,14,56], ['red','gray','green','blue'],['H','He','N','Fe']):
-            sigmaXmax, sigmaXmax_part = self.np.sqrt(model.get_var_Xmax(self.np.log(A), 0., energy))
-            self.plt.semilogx(energy,sigmaXmax, color = c)
-            idx = self.find_nearest(energy,1e11)
-            self.plt.annotate(name,(energy[idx+1],sigmaXmax[idx]),color = c,annotation_clip=False)
 
-        sigmaXmax, sigmaXmax_part = self.np.sqrt(model.get_var_Xmax(mean_lnA, var_lnA, energy))
-        l, = self.plt.semilogx(energy,sigmaXmax, color = 'saddlebrown', ls =ls, lw=lw, label=label)
-        ax_plots.append(l)
+        for A, c, name in zip([1, 4, 14, 56], ["red", "gray", "green", "blue"],
+                              ["H", "He", "N", "Fe"]):
+            sigmaXmax, _ = np.sqrt(model.get_var_Xmax(np.log(A), 0.0, energy))
+            plt.semilogx(energy, sigmaXmax, color=c)
+            idx = self.find_nearest(energy, 1e11)
+            plt.annotate(name, (energy[idx + 1], sigmaXmax[idx]), color=c,
+                         annotation_clip=False)
 
-        XRMS2019 = self.spectra_data['XRMS2019']
-        XRMSTA2018 = self.spectra_data['XRMSTA2018']
+        sigmaXmax, _ = np.sqrt(model.get_var_Xmax(mean_lnA, var_lnA, energy))
+        line, = plt.semilogx(energy, sigmaXmax, color="saddlebrown", ls=ls, lw=lw, label=label)
+        ax_plots.append(line)
+
         if self.plot_data_sets["cr"]["Auger"]:
-            xerr = self.np.array((XRMS2019['energy_Low'], XRMS2019['energy_Up']))
-            yerr = self.np.array((XRMS2019['sys_Low'], XRMS2019['sys_Up']))
-            self.make_error_boxes(XRMS2019['energy'], XRMS2019['val'], xerr, yerr, facecolor='gray')
-            
-            if self.cr_syst["Auger"]["SigmaXmean"] > 0:
-                xcorr = self.cr_syst["Auger"]["SigmaXmean"] * XRMS2019['sys_Up']/100
-            else:
-                xcorr = self.cr_syst["Auger"]["SigmaXmean"] * XRMS2019['sys_Low']/100
-            
-            self.plt.errorbar(XRMS2019['energy'], XRMS2019['val'] + xcorr,
-                        xerr=(XRMS2019['energy_Low'], XRMS2019['energy_Up']),
-                        yerr=(XRMS2019['stat'], XRMS2019['stat']),
-                        fmt='o',markersize=6, label='Auger 2019'*auger_label, c='black')
-
+            self._xmax_data(XRMS2019, "Auger", "SigmaXmean", "o", "black", "gray",
+                            auger_label, "Auger 2019")
         if self.plot_data_sets["cr"]["TA"]:
-            xerrTA = self.np.array((XRMSTA2018['energy_Low'], XRMSTA2018['energy_Up']))
-            yerrTA = self.np.array((XRMSTA2018['sys_Low'], XRMSTA2018['sys_Up']))
-            self.make_error_boxes(XRMSTA2018['energy'], XRMSTA2018['val'], xerrTA, yerrTA, facecolor='tab:brown',alpha=0.15)
-            
-            
-            if self.cr_syst["TA"]["SigmaXmean"] > 0:
-                xcorrTA = self.cr_syst["TA"]["SigmaXmean"] * XRMSTA2018['sys_Up']/100
-            else:
-                xcorrTA = self.cr_syst["TA"]["SigmaXmean"] * XRMSTA2018['sys_Low']/100
+            self._xmax_data(XRMSTA2018, "TA", "SigmaXmean", "s", "tab:brown", "tab:brown",
+                            auger_label, "TA 2018", box_alpha=0.15, alpha=0.7)
 
-            self.plt.errorbar(XRMSTA2018['energy'], XRMSTA2018['val'] + xcorrTA,
-                        xerr=(XRMSTA2018['energy_Low'], XRMSTA2018['energy_Up']),
-                        yerr=(XRMSTA2018['stat'], XRMSTA2018['stat']),
-                        fmt='s',markersize=6,elinewidth=3, c='tab:brown',alpha=0.7, label = "TA 2019")
-        
-        self.plt.xlim(1e9,1e11)
-        self.plt.ylim(10,70)
-        self.plt.xlabel('E  [GeV]')
-        self.plt.ylabel(r'$\sigma( X_{max})$ [g cm$^{-2}$]')
+        plt.xlim(1e9, 1e11)
+        plt.ylim(10, 70)
+        plt.xlabel("E  [GeV]")
+        plt.ylabel(r"$\sigma( X_{max})$ [g cm$^{-2}$]")
         return ax_plots
-        
-        
 
-    def plot_neutrinos(self, result,result_each_tde=None,  source=True, cosmo=True, total=False, ls=None,color=None,label=None,loc=None,plot_data=True,lw=3.):
-        import numpy as np    
-        ls_source = '--' if ls is None else ls 
-        ls_cosmo = '-.' if ls is None else ls
-        ls_total = '-' if ls is None else ls
-        color_source = self.plt.rcParams['axes.prop_cycle'].by_key()['color'][0] if color is None else color
-        color_cosmo = self.plt.rcParams['axes.prop_cycle'].by_key()['color'][1] if color is None else color
-        color_total = 'saddlebrown' if color is None else color
-        
+    def _xmax_data(self, data, detector, syst_field, fmt, color, box_color, auger_label,
+                   label, box_alpha=0.5, alpha=1.0):
+        """Shared Xmax / sigma(Xmax) data overlay (Auger or TA).
 
-        
-        label_source = 'Source' if label is None else label 
-        label_cosmo = 'Cosmogenic' if label is None else label
-        label_total = 'Total' if label is None else label
+        `syst_field` selects which systematic shift applies: "Xmean" for the
+        <Xmax> panel, "SigmaXmean" for the sigma(Xmax) panel.
+        """
+        xerr = np.array((data["energy_Low"], data["energy_Up"]))
+        yerr = np.array((data["sys_Low"], data["sys_Up"]))
+        self.make_error_boxes(data["energy"], data["val"], xerr, yerr,
+                              facecolor=box_color, alpha=box_alpha)
+        syst = self.cr_syst[detector][syst_field]
+        shift = data["sys_Up"] if syst > 0 else data["sys_Low"]
+        xcorr = syst * shift / 100
+        plt.errorbar(data["energy"], data["val"] + xcorr,
+                     xerr=(data["energy_Low"], data["energy_Up"]),
+                     yerr=(data["stat"], data["stat"]),
+                     fmt=fmt, markersize=6, c=color, alpha=alpha,
+                     elinewidth=3 if detector == "TA" else None,
+                     label=label if auger_label else None)
 
-        if label == 'no_label':
+    def plot_neutrinos(self, result, result_each_tde=None, source=True, cosmo=True,
+                       total=False, ls=None, color=None, label=None, loc=None):
+        ls_source = "--" if ls is None else ls
+        ls_cosmo = "-." if ls is None else ls
+        ls_total = "-" if ls is None else ls
+        cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        color_source = cycle[0] if color is None else color
+        color_cosmo = cycle[1] if color is None else color
+        color_total = "saddlebrown" if color is None else color
+        label_source = "Source" if label is None else label
+        label_cosmo = "Cosmogenic" if label is None else label
+        label_total = "Total" if label is None else label
+        if label == "no_label":
             label_source = label_cosmo = label_total = None
 
-        if self.plot_data_sets["nu"]["HESE"]:
-                # Plot HESE data
-            HESE = self.spectra_data['HESE']
-            
-            uplims = HESE["upper_err"].value == 0
-            xerr = (HESE['energy'].value * 0.3, HESE['energy'].value * 0.43)
-            self.plt.errorbar(HESE['energy'].value, 
-                        HESE['flux'].value, 
-                        (HESE["lower_err"].value,HESE["upper_err"].value),
-                        uplims=uplims,
-                        xerr=xerr,
-                        ls='none',color='k')
-            self.plt.text(2e5, 7e-8, "HESE", color="k")
-            
-            
-        if self.plot_data_sets["nu"]["IC9yr"]:
-            # Plot IceCube 9 years data
-            ic_9yr = self.spectra_data['ic_9yr']
-            self.plt.loglog(ic_9yr['energy'], ic_9yr['limit'], color='blue', lw=1.7)
-            self.plt.text(8e6, 
-                    3e-8,
-                    "IC 9 year",
-                    color="blue")
-            
-        if self.plot_data_sets["nu"]["ICGen2"]:
-            # Plot IceCube-Gen2 data
-            gen2 = self.spectra_data['gen2']
-            self.plt.loglog(gen2['energy'], gen2['limit'], color='k', lw=0.9)
-            self.plt.text(2.7e7,
-                    gen2['limit'][int(gen2['limit'].size /15)]* .55, 
-                    "IC Gen2",
-                    color="k")
-
-            
-        if self.plot_data_sets["nu"]["RNO-G"]:
-            gen2 = self.spectra_data['rno_g_2020']
-            self.plt.loglog(rno_g_2020['energy'], rno_g_2020['limit']/2, color='tab:olive', lw=0.9)
-            self.plt.text(3.5e8, 
-                    1e-8, 
-                    "RNO-G", 
-                    color="tab:olive")
-
-                # Plot RNO-G data
-            
-        if self.plot_data_sets["nu"]["GRAND200K"]:
-            # Plot GRAND200k data
-            GRAND200K_new = self.spectra_data['GRAND200K_new']
-            self.plt.loglog(GRAND200K_new['energy'], GRAND200K_new['limit'], color='r' , lw=0.9)
-            self.plt.text(1.6e9, 
-                    2.0e-9, 
-                    "GRAND\n200k", 
-                    color="r")
-
-            
-        if self.plot_data_sets["nu"]["Auger2019"]:
-                # Plot Auger nu 2019 data
-            PAO_nu_2019 = self.spectra_data['PAO_nu_2019']
-            self.plt.loglog(PAO_nu_2019['energy'], PAO_nu_2019['limit'], color='magenta', lw=0.9)
-            self.plt.text(PAO_nu_2019['energy'][0] * 2, 
-                    PAO_nu_2019['limit'][0] * .5, 
-                    "Auger 2019",
-                    color='magenta')
-            
-
+        self._plot_nu_data()
 
         cosmo_range = [11, 12, 13, 14]
         source_range = [16]
-        # for i in range(11,16):
-        #     print(i, self.np.max(result.get_solution_group([i])[1]))
         source_nus = result.get_solution_group(source_range)
         cosmo_nus = result.get_solution_group(cosmo_range)
-        ax_plots =[]
+        ax_plots = []
         if source:
-            l, =self.plt.loglog(source_nus[0], source_nus[1] / source_nus[0], label=label_source, lw=2, ls = ls_source,
-                    color=color_source, alpha = 0.3)
-            ax_plots.append(l)
-
+            line, = plt.loglog(source_nus[0], source_nus[1] / source_nus[0],
+                               label=label_source, lw=2, ls=ls_source,
+                               color=color_source, alpha=0.3)
+            ax_plots.append(line)
         if cosmo:
-            l, =self.plt.loglog(cosmo_nus[0], cosmo_nus[1] / cosmo_nus[0], label=label_cosmo, lw =2, ls = ls_cosmo,
-                    color=color_cosmo, alpha=0.3)
-            ax_plots.append(l)
-
+            line, = plt.loglog(cosmo_nus[0], cosmo_nus[1] / cosmo_nus[0],
+                               label=label_cosmo, lw=2, ls=ls_cosmo,
+                               color=color_cosmo, alpha=0.3)
+            ax_plots.append(line)
         if total:
-            l, = self.plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = ls_total,
-                    color=color_total, label=label_total)
-            ax_plots.append(l)
-        
-        if loc is None:
-            loc = "lower right"
-            
-            
-        if result_each_tde != None: 
-        
-            for res_tde, color, linestyle,label,position,rotation, loffset in zip(result_each_tde,
-                                                    [self.TDES_STYLES['dsg']['color'], self.TDES_STYLES['fdr']['color'], self.TDES_STYLES['aalc']['color']],
-                                                    [':','--','-.'],
-                                                    ["dsg", "fdr","aalc"],
-                                                    [(8e8,6e2),(2e9,6e2), (2e10,6e2)],
-                                                    [0,0,0],
-                                                    [0,0,0]):
-                source_nus = res_tde.get_solution_group(source_range)
-                cosmo_nus  = res_tde.get_solution_group(cosmo_range)
-                
-                    
-                self.plt.loglog(cosmo_nus[0], cosmo_nus[1]/cosmo_nus[0] + source_nus[1]/source_nus[0], lw =3, ls = linestyle,
-                    color=color, label=label)
-                
-                
-            
+            line, = plt.loglog(cosmo_nus[0], cosmo_nus[1] / cosmo_nus[0]
+                               + source_nus[1] / source_nus[0], lw=3, ls=ls_total,
+                               color=color_total, label=label_total)
+            ax_plots.append(line)
 
-        self.plt.legend(ncol=3,loc="upper center", frameon=1)
-        self.plt.axis([2e4,2e10, 1e-11, 9e-7])
-        self.plt.ylabel('$E^2 dN/dE$ [GeV cm$^{-2}$ s$^{-1}$ sr$^{-1}$]')
-        self.plt.xlabel('E [GeV]')
+        if result_each_tde is not None:
+            for key, res_tde in zip(SCENARIOS, result_each_tde):
+                src = res_tde.get_solution_group(source_range)
+                cos = res_tde.get_solution_group(cosmo_range)
+                plt.loglog(cos[0], cos[1] / cos[0] + src[1] / src[0], lw=3,
+                           ls=TDE_STYLES[key]["ls"], color=TDE_STYLES[key]["color"],
+                           label=key)
+
+        plt.legend(ncol=3, loc="upper center", frameon=True)
+        plt.axis([2e4, 2e10, 1e-11, 9e-7])
+        plt.ylabel(r"$E^2 dN/dE$ [GeV cm$^{-2}$ s$^{-1}$ sr$^{-1}$]")
+        plt.xlabel("E [GeV]")
         return ax_plots
 
+    def _plot_nu_data(self):
+        sd = self.spectra_data
+        sets = self.plot_data_sets["nu"]
+        if sets["HESE"]:
+            HESE = sd["HESE"]
+            uplims = HESE["upper_err"].value == 0
+            plt.errorbar(HESE["energy"].value, HESE["flux"].value,
+                         (HESE["lower_err"].value, HESE["upper_err"].value),
+                         uplims=uplims,
+                         xerr=(HESE["energy"].value * 0.3, HESE["energy"].value * 0.43),
+                         ls="none", color="k")
+            plt.text(2e5, 7e-8, "HESE", color="k")
+        if sets["IC9yr"]:
+            ic = sd["ic_9yr"]
+            plt.loglog(ic["energy"].value, ic["limit"].value, color="blue", lw=1.7)
+            plt.text(8e6, 3e-8, "IC 9 year", color="blue")
+        if sets["ICGen2"]:
+            gen2 = sd["gen2"]
+            limit = gen2["limit"].value
+            plt.loglog(gen2["energy"].value, limit, color="k", lw=0.9)
+            plt.text(2.7e7, limit[int(limit.size / 15)] * 0.55, "IC Gen2", color="k")
+        if sets["RNO-G"]:
+            rno = sd["rno_g_2020"]
+            plt.loglog(rno["energy"].value, rno["limit"].value / 2, color="tab:olive", lw=0.9)
+            plt.text(3.5e8, 1e-8, "RNO-G", color="tab:olive")
+        if sets["GRAND200K"]:
+            grand = sd["GRAND200K_new"]
+            plt.loglog(grand["energy"].value, grand["limit"].value, color="r", lw=0.9)
+            plt.text(1.6e9, 2.0e-9, "GRAND\n200k", color="r")
+        if sets["Auger2019"]:
+            pao = sd["PAO_nu_2019"]
+            energy, limit = pao["energy"].value, pao["limit"].value
+            plt.loglog(energy, limit, color="magenta", lw=0.9)
+            plt.text(energy[0] * 2, limit[0] * 0.5, "Auger 2019", color="magenta")
 
-    def get_results_from_states(self, plot_index):
-        import numpy as np
-        from prince_cr.solvers import UHECRPropagationResult
-        
-        # Load the shared egrid and known_spec from the new files
-        egrid = self.np.load("data_TDE/egrid.npy")
-        known_spec = self.np.load("data_TDE/known_spec.npy")
-        input_spec = self.input_spec
-        # Define labels to locate the state files based on index parameters
-        label_dsg = f"{plot_index[0]}_{plot_index[1]}_{plot_index[2]}_"
-        label_fdr = f"{plot_index[3]}_{plot_index[4]}_{plot_index[5]}_"
-        label_aalc = f"{plot_index[6]}_{plot_index[7]}_{plot_index[8]}_"
-        
-        # Load the state data for DSG, FDR, and AALC based on the labels
-        data_dsg = [self.np.load(f"data_TDE/state_dsg_{label_dsg}{m}.npy") for m in range(len(input_spec))]
-        data_fdr = [self.np.load(f"data_TDE/state_fdr_{label_fdr}{m}.npy") for m in range(len(input_spec))]
-        data_aalc = [self.np.load(f"data_TDE/state_aalc_{label_aalc}{m}.npy") for m in range(len(input_spec))]
-        
-        # Prepare dictionaries for each model containing egrid, known_spec, and state information
-        dicts_dsg = [{'egrid': egrid, 'known_spec': known_spec, 'state': state} for state in data_dsg]
-        dicts_fdr = [{'egrid': egrid, 'known_spec': known_spec, 'state': state} for state in data_fdr]
-        dicts_aalc = [{'egrid': egrid, 'known_spec': known_spec, 'state': state} for state in data_aalc]
-        
-        # Convert each dictionary to a UHECRPropagationResult
-        results_dsg = [UHECRPropagationResult.from_dict(d) for d in dicts_dsg]
-        results_fdr = [UHECRPropagationResult.from_dict(d) for d in dicts_fdr]
-        results_aalc = [UHECRPropagationResult.from_dict(d) for d in dicts_aalc]
-        
-        return results_dsg, results_fdr, results_aalc
-    
-
-    def get_comb_result(self, plot_index, frac_lr):
-        results_dsg, results_fdr, results_aalc = self.get_each_type_result(plot_index, frac_lr)
-       
-        return results_dsg + results_fdr + results_aalc
-    
-    def get_each_type_result(self, plot_index, frac_lr):
-        import numpy as np
-        results_dsg, results_fdr, results_aalc = self.get_results_from_states(plot_index)
-       
-        fraction_dsg = self.np.array(frac_lr['frac_dsg'])
-        fraction_fdr = self.np.array(frac_lr['frac_fdr'])
-        fraction_aalc = self.np.array(frac_lr['frac_aalc'])
-        
-        lr_dsg = frac_lr['lr_dsg']
-        lr_fdr = frac_lr['lr_fdr']
-        lr_aalc = frac_lr['lr_aalc']
-        
-        results_dsg = self.np.sum(results_dsg * fraction_dsg) *lr_dsg  
-        results_fdr = self.np.sum(results_fdr * fraction_fdr) *lr_fdr 
-        results_aalc = self.np.sum(results_aalc * fraction_aalc) *lr_aalc    
-
-        return results_dsg, results_fdr, results_aalc
-    
-            
-    def get_scan_comb_result(self):
-        import astropy.units as u
-        import numpy as np
-        self.plot_index = (self.dsg_parameters["radius_index"],self.dsg_parameters["r_max_index"],self.dsg_parameters["b_field_index"],
-                 self.fdr_parameters["radius_index"],self.fdr_parameters["r_max_index"],self.fdr_parameters["b_field_index"],
-                 self.aalc_parameters["radius_index"],self.aalc_parameters["r_max_index"],self.aalc_parameters["b_field_index"],)
-        
-        A = self.A
-        Z = self.Z
-        r_Max_dsg =  self.rigidity_max[self.dsg_parameters["r_max_index"]]
-        r_Max_fdr =  self.rigidity_max[self.fdr_parameters["r_max_index"]]
-        r_Max_aalc =  self.rigidity_max[self.aalc_parameters["r_max_index"]]
-        
-        E_p_min = (self.E_p_min* u.GeV).to_value(u.erg)
-        E_dsg_p_max = (r_Max_dsg *1e9* u.GeV).to_value(u.erg)
-        E_fdr_p_max = (r_Max_fdr *1e9* u.GeV).to_value(u.erg)
-        E_aalc_p_max = (r_Max_aalc *1e9* u.GeV).to_value(u.erg)
-        print(A,Z,E_p_min,r_Max_dsg,r_Max_fdr,r_Max_aalc)
-        
-        print()
-        
-        sum_frac_dsg = self.np.sum(self.dsg_parameters["comp"]* self.np.log(Z*E_dsg_p_max/(A*E_p_min)))
-        lum_fraction_dsg = self.dsg_parameters["comp"] * self.np.log(Z*E_dsg_p_max/(A*E_p_min)) / sum_frac_dsg
-        # print("DEBUG ", sum_frac_dsg, lum_fraction_dsg)
-        
-        sum_frac_fdr = self.np.sum(self.fdr_parameters["comp"]* self.np.log(Z*E_fdr_p_max/(A*E_p_min)))
-        lum_fraction_fdr = self.fdr_parameters["comp"] * self.np.log(Z*E_fdr_p_max/(A*E_p_min)) / sum_frac_fdr
-        
-        sum_frac_aalc = self.np.sum(self.aalc_parameters["comp"]* self.np.log(Z*E_aalc_p_max/(A*E_p_min)))
-        lum_fraction_aalc = self.aalc_parameters["comp"] * self.np.log(Z*E_aalc_p_max/(A*E_p_min)) / sum_frac_aalc
-
-
-        self.plot_frac_lr = {
-            'frac_dsg': lum_fraction_dsg,
-            'frac_fdr': lum_fraction_fdr,
-            'frac_aalc': lum_fraction_aalc,
-            'lr_dsg': self.dsg_parameters["local_rate"] if self.dsg_parameters["include"] == True else 1e-5 ,
-            'lr_fdr': self.fdr_parameters["local_rate"] if self.fdr_parameters["include"] == True else 1e-5,
-            'lr_aalc': self.aalc_parameters["local_rate"] if self.aalc_parameters["include"] == True else 1e-5,
-            }
-
-        
-        self.plot_results_comb =  self.get_comb_result(self.plot_index, frac_lr = self.plot_frac_lr)
-        self.plot_results_each =  self.get_each_type_result(self.plot_index, frac_lr = self.plot_frac_lr)
-        
-
-    
-    def plot_data_simple(self, title="Test plot", label_E=2.8e11, label_offset=0.5, label_alpha=0.2, plot_total_flux=True ):
-        import numpy as np
-        # print("I'm in the plot_data_simple")
+    def plot_data_simple(self, title="TDE source model", label_E=2.8e11,
+                         label_offset=0.5, label_alpha=0.2, plot_total_flux=True):
         with self.plot_output:
             self.plot_output.clear_output(wait=True)
-            fig, axs = self.plt.subplots(2,2, figsize=(14,9.5), gridspec_kw={'height_ratios':(1,.63), 'hspace':.3, 'wspace':0.3})
+            fig, axs = plt.subplots(2, 2, figsize=(14, 9.5),
+                                    gridspec_kw={"height_ratios": (1, 0.63),
+                                                 "hspace": 0.3, "wspace": 0.3})
 
             self.get_scan_comb_result()
             self.change_xmax_model()
 
-            # deltaE, deltaXmax, _ = [0.0,0.0,0.0]
-            # deltaE*=14
-            # print("deltaE",deltaE)
-            
             fig.sca(axs[0][0])
-            self.axs_cr = self.plot_cosmic_rays(self.plot_results_comb, self.plot_results_each, label_E=label_E, label_offset=label_offset, label_alpha=label_alpha, plot_total_flux=plot_total_flux)
-            self.plt.fill_between([1e9,6e9*(1+self.np.min([self.cr_syst["Auger"]["E"], self.cr_syst["TA"]["E"]])/100)],1e-1,1e3,color='gray', alpha = 0.4)
-
-            # self.plt.legend(loc="upper left")
+            self.plot_cosmic_rays(self.plot_results_comb, self.plot_results_each,
+                                  label_E=label_E, label_offset=label_offset,
+                                  label_alpha=label_alpha, plot_total_flux=plot_total_flux)
+            self._energy_band("Auger", "TA")
 
             fig.sca(axs[0][1])
-            self.axs_nu = self.plot_neutrinos(self.plot_results_comb, self.plot_results_each, source=True, cosmo=True, total=plot_total_flux)
-            
-            fig.sca(axs[1][0])
-            self.axs_xmax_mean = self.plot_xmax_mean(self.plot_results_comb, self.air_shower_model['model'], lw=2.5)
-            self.plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
-            self.plt.legend(loc='upper right')
+            self.plot_neutrinos(self.plot_results_comb, self.plot_results_each,
+                                source=True, cosmo=True, total=plot_total_flux)
 
+            fig.sca(axs[1][0])
+            self.plot_xmax_mean(self.plot_results_comb, self.air_shower_model["model"], lw=2.5)
+            plt.fill_between([1e8, 6e9], 1e-1, 1e3, color="gray", alpha=0.4)
+            plt.legend(loc="upper right")
 
             fig.sca(axs[1][1])
-            self.axs_xmax_sigma = self.plot_xmax_sigma(self.plot_results_comb, self.air_shower_model['model'], lw=2.5)
-            self.plt.fill_between([1e8,6e9],1e-1,1e3,color='gray', alpha = 0.4)
-            self.plt.legend(loc='upper right')
+            self.plot_xmax_sigma(self.plot_results_comb, self.air_shower_model["model"], lw=2.5)
+            plt.fill_between([1e8, 6e9], 1e-1, 1e3, color="gray", alpha=0.4)
+            plt.legend(loc="upper right")
 
-            self.plt.suptitle(title, color = 'gray', fontsize = 26, weight = 'semibold', y=0.99)
+            plt.suptitle(title, color="gray", fontsize=24, weight="semibold", y=0.99)
+            plt.tight_layout(rect=(0, 0, 1, 0.95))
+            plt.subplots_adjust(left=0.08, right=0.95, bottom=0.09, top=0.95)
+            plt.show()
 
-            self.plt.tight_layout(rect=(0,0,1,.95))
-            self.plt.subplots_adjust(left= 0.08, right = 0.95, bottom=0.09, top=0.95)
-            self.plt.show()                          
+    def _energy_band(self, *detectors):
+        lower = min(self.cr_syst[d]["E"] for d in detectors)
+        plt.fill_between([1e9, 6e9 * (1 + lower / 100)], 1e-1, 1e3, color="gray", alpha=0.4)
 
-
-
-    def attach_event_handlers(self):
-        self.grid_comp_dsg[1:3, 0].observe(self.handle_type_comp_dsg_change, names='value')
-        self.grid_comp_fdr[1:3, 0].observe(self.handle_type_comp_fdr_change, names='value')
-        self.grid_comp_aalc[1:3, 0].observe(self.handle_type_comp_aalc_change, names='value')
-        
-        self.include_dsg.observe(self.handle_include_dsg_change, names='value')
-        self.include_fdr.observe(self.handle_include_fdr_change, names='value')
-        self.include_aalc.observe(self.handle_include_aalc_change, names='value')
-
-        self.plotting_scanario.observe(self.update_fields_based_on_scenario, names='value')
-
-
-        self.grid_comp_dsg[1, 1].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[2, 1].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[3, 1].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[4, 1].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[1, 2].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[2, 2].observe(self.handle_comp_dsg_change, names='value')
-        self.grid_comp_dsg[3, 2].observe(self.handle_comp_dsg_change, names='value')
-
-        # Observers for grid_comp_fdr
-        self.grid_comp_fdr[1, 1].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[2, 1].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[3, 1].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[4, 1].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[1, 2].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[2, 2].observe(self.handle_comp_fdr_change, names='value')
-        self.grid_comp_fdr[3, 2].observe(self.handle_comp_fdr_change, names='value')
-
-        # Observers for grid_comp_aalc
-        self.grid_comp_aalc[1, 1].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[2, 1].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[3, 1].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[4, 1].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[1, 2].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[2, 2].observe(self.handle_comp_aalc_change, names='value')
-        self.grid_comp_aalc[3, 2].observe(self.handle_comp_aalc_change, names='value')
-
-        self.grid_param_dsg[1, 1].observe(self.handle_local_rate_dsg_change, names='value')
-        self.grid_param_fdr[1, 1].observe(self.handle_local_rate_fdr_change, names='value')
-        self.grid_param_aalc[1, 1].observe(self.handle_local_rate_aalc_change, names='value')
-
-        self.grid_param_dsg[2, 1].observe(self.handle_redshift_dsg_change, names='value')
-        self.grid_param_fdr[2, 1].observe(self.handle_redshift_fdr_change, names='value')
-        self.grid_param_aalc[2, 1].observe(self.handle_redshift_aalc_change, names='value')
-
-        self.grid_param_dsg[1, 0].observe(self.handle_radius_dsg_change, names='value')
-        self.grid_param_fdr[1, 0].observe(self.handle_radius_fdr_change, names='value')
-        self.grid_param_aalc[1, 0].observe(self.handle_radius_aalc_change, names='value')
-
-        self.grid_param_dsg[2, 0].observe(self.handle_r_max_dsg_change, names='value')
-        self.grid_param_fdr[2, 0].observe(self.handle_r_max_fdr_change, names='value')
-        self.grid_param_aalc[2, 0].observe(self.handle_r_max_aalc_change, names='value')
-
-
-        self.grid_param_dsg[3, 0].observe(self.handle_b_field_dsg_change, names='value')
-        self.grid_param_fdr[3, 0].observe(self.handle_b_field_fdr_change, names='value')
-        self.grid_param_aalc[3, 0].observe(self.handle_b_field_aalc_change, names='value')
-
-        self.buttons[0,0].on_click(self.on_plot_button_clicked)
-
-
+    # ---- entry point --------------------------------------------------- #
 
     def display(self):
         return display(self.box_ui)
